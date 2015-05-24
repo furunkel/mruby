@@ -272,14 +272,6 @@ module As
     def move?
       !!(name =~ /mov/)
     end
-
-    def target_register?(reg_name = nil)
-      target.is_a?(Register) && (!reg_name || target.name == reg_name)
-    end
-
-    def source_register?(reg_name = nil)
-      source.is_a?(Register) && (!reg_name || source.name == reg_name)
-    end
   end
 
   Unparsed = Struct.new :data do
@@ -335,18 +327,24 @@ module As
 
   class File
     include InstructionScanning
+    ARCHS = [:x86_64, :i686]
 
-    attr_reader :first, :last
+    attr_reader :first, :last, :arch
 
-    def self.parse(data)
-      new data
+    def self.parse(data, arch)
+      arch = arch.to_sym
+      raise ArgumentError, "invalid architecture #{arch}"\
+        unless ARCHS.include? arch
+
+      new data, arch
     end
 
-    def initialize(data)
+    def initialize(data, arch)
       @labels = {}
       @first = nil
       @last = nil
       @label_operands = []
+      @arch = arch
 
       parse data
 

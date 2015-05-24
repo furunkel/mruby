@@ -1,5 +1,6 @@
 
 static uint8_t op_nop__text[] = {
+0xc3,                                     /*0: retq */
 
 };
 static uint8_t op_nop__rodata[] = {
@@ -755,7 +756,7 @@ static uint8_t op_epop__text[] = {
 0x31, 0xdb,                               /*24: xor    %ebx,%ebx */
 0x41, 0xbc, 0x00, 0x00, 0x00, 0x00,       /*26: mov    $0x0,%r12d */
 0x0f, 0x1f, 0x40, 0x00,                   /*2c: nopl   0x0(%rax) */
-0x41, 0x3b, 0x6e, 0xc8,                   /*30: cmp    -0x38(%r14),%ebp */
+0x41, 0x3b, 0x6e, 0xd0,                   /*30: cmp    -0x30(%r14),%ebp */
 0x7e, 0x22,                               /*34: jle    58 <op_epop+0x58> */
 0x49, 0x8b, 0x7f, 0x58,                   /*36: mov    0x58(%r15),%rdi */
 0xff, 0xcd,                               /*3a: dec    %ebp */
@@ -4735,7 +4736,7 @@ const uint8_t* ops_rodata[78];
 const char *op_names[78];
 
 static size_t op_sizes_text[] = {
-  sizeof(op_nop__text), /* 0 */
+  sizeof(op_nop__text), /* 1 */
   sizeof(op_move__text), /* 40 */
   sizeof(op_loadl__text), /* 44 */
   sizeof(op_loadi__text), /* 33 */

@@ -57,6 +57,18 @@ module As
         self.class.new(ALIASES[register_alias_id][id])
       end
 
+      def for_arch(arch)
+        idx = case arch
+        when :x86_64
+          0
+        when :i686
+          1
+        else
+          raise ArgumentError, "invalid arch #{arch}"
+        end
+        self.class.new ALIASES[register_alias_id][idx]
+      end
+
       def suffix
         SUFFIXES[ALIASES[register_alias_id].index name]
       end
@@ -253,6 +265,18 @@ module As
       include C
       extend C
     end
+
+    module CC
+      class FastCall
+        def self.argument_registers
+          [:ecx, :edx].map{|n| X86::Register.new n}
+        end
+
+        def self.return_value_register
+          X86::Register.new :eax
+        end
+      end
+    end
   end
 
   module X64
@@ -268,10 +292,5 @@ module As
       end
     end
   end
-
   CC = X64::CC::SysV
-
 end
-
-
-

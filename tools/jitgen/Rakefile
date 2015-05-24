@@ -82,7 +82,7 @@ def boxings
 end
 
 def triples
-  %w(x86_64-unknown-linux-gnu)
+  %w(x86_64-unknown-linux-gnu i686-unknown-linux-gnu)
 end
 
 Profile = Struct.new(:triple, :boxing) do
@@ -91,7 +91,7 @@ Profile = Struct.new(:triple, :boxing) do
   end
 
   def arch
-    triple.split('-', 2)[0]
+    triple.split('-', 2)[0].to_sym
   end
 end
 
@@ -229,8 +229,8 @@ def gen_file(profile, f)
   end
 end
 
-def postproc_asm_file(op_name, in_file, out_file)
-  in_asm = As::File.parse File.read(in_file)
+def postproc_asm_file(profile, op_name, in_file, out_file)
+  in_asm = As::File.parse File.read(in_file), profile.arch
 
   klass = Postprocess::Processor
 
@@ -306,12 +306,20 @@ profiles.each do |profile|
       end
     else
       file pp_asm_file => asm_file do |t|
-        postproc_asm_file op, asm_file, t.name
+        postproc_asm_file profile, op, asm_file, t.name
       end
     end
 
     file obj_file => [pp_asm_file, obj_dir(profile)] do |t|
-      sh "as #{pp_asm_file} -o #{t.name}"
+      target_opts = case profile.arch
+                   when :x86_64
+                     '--64'
+                   when :i686
+                     '--32'
+                   else
+                     raise
+                   end
+      sh "as #{target_opts} #{pp_asm_file} -o #{t.name}"
     end
 
     $obj_files[profile] << obj_file
