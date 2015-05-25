@@ -48,6 +48,9 @@
 
 #define ALIGN(s, a) (((s) + (a) - 1) & ~((a) - 1))
 
+
+#if defined(__x86_64__) || defined(_M_X64)
+
 #ifndef MRB_JIT_PAGE_MAP_SIZE
 #define MRB_JIT_PAGE_MAP_SIZE 2048
 #endif
@@ -128,7 +131,8 @@ found:
     return (uint8_t *) (MRB_JIT_PAGE_BASE - i * page_size);
   }
 }
-
+#else
+#endif
 
 #if !defined(_WIN32) && \
     (defined(__unix__) || defined(__unix) ||\
@@ -151,14 +155,18 @@ jit_ctx_alloc(mrb_state *mrb, struct mrb_jit_ctx *ctx, size_t text_size, size_t 
   size_t page_size = jit_page_size();
   size_t size = ALIGN(text_size + rodata_size, page_size);
   uint8_t *addr, *mem;
-  unsigned tries = 0;
 
+#if defined(__x86_64__)
+  unsigned tries = 0;
 retry:
   addr = find_page(size, page_size);
   if(!addr) {
     fprintf(stderr, "JIT: no free address range for page found. Consider increasing MRB_JIT_PAGE_MAP_SIZE\n");
     abort();
   }
+#else
+  addr = NULL;
+#endif
 
   JIT_PRINTF( "allocating page of size %zu (text:%zu, rodata: %zu) (at %p)\n", size, text_size,rodata_size ,addr);
 
@@ -173,6 +181,7 @@ retry:
   ctx->size = size;
 
   if(mem != MAP_FAILED) {
+#if defined(__x86_64__)
     if((mem + size) >= (uint8_t *)INT32_MAX) {
       tries++;
       if (tries >= MRB_JIT_PAGE_FIND_MAX_ATTEMPTS) {
@@ -189,6 +198,7 @@ retry:
     else {
       mark_page(ctx->text, ctx->size, page_size, PAGE_MARK_ALLOCED);
     }
+#endif
     return TRUE;
   }
 
@@ -198,12 +208,14 @@ retry:
 static void
 jit_ctx_free(mrb_state *mrb, struct mrb_jit_ctx *ctx)
 {
-  size_t page_size = jit_page_size();
   JIT_PRINTF("deallocating page of size %zu (%ld pages)\n", ctx->size, ctx->size / page_size );
   if(munmap(ctx->text, ctx->size) < 0) {
     fprintf(stderr, "munmap failed: %s\n", strerror(errno));
   } else {
+#if defined(__x86_64__)
+    size_t page_size = jit_page_size();
     mark_page(ctx->text, ctx->size, page_size, PAGE_MARK_FREE);
+#endif
   }
 }
 
