@@ -485,11 +485,14 @@ mrb_jit_compile(mrb_state *mrb, mrb_irep *irep)
   }
 }
 
-mrb_bool
+mrb_fastcall mrb_bool
 mrb_jit_enter(mrb_state *mrb, struct mrb_irep *irep, void *ctx, mrb_code *pc)
 {
+  JIT_PRINTF("JIT: entering, mrb is %p\n", mrb);
+
   if(MRB_UNLIKELY(!MRB_IREP_JITTED_P(irep))) {
     if(!mrb_jit_compile(mrb, irep)) {
+      fprintf(stderr, "JIT: compilation failed\n");
       return FALSE;
     }
   }

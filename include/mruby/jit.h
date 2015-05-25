@@ -32,7 +32,7 @@ struct mrb_irep;
     (*f)(op_ctx); \
   } while(0);
 
-mrb_bool mrb_jit_enter(mrb_state *mrb, struct mrb_irep *irep, void *ctx, mrb_code *pc);
+mrb_fastcall mrb_bool mrb_jit_enter(mrb_state *mrb, struct mrb_irep *irep, void *ctx, mrb_code *pc);
 
 mrb_bool
 mrb_jit_release(mrb_state *mrb, struct mrb_irep *irep);
