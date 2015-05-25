@@ -4444,7 +4444,7 @@ static uint8_t op_exec__text[] = {
 0x41, 0x5c,                               /*11d: pop    %r12 */
 0x41, 0x5e,                               /*11f: pop    %r14 */
 0x41, 0x5f,                               /*121: pop    %r15 */
-0xeb, 0x59,                               /*123: jmp    17e <op_exec+0x17e> */
+0xeb, 0x74,                               /*123: jmp    199 <op_exec+0x199> */
 0x48, 0x8b, 0x40, 0x18,                   /*125: mov    0x18(%rax),%rax */
 0x49, 0x89, 0x46, 0x08,                   /*129: mov    %rax,0x8(%r14) */
 0x48, 0x8b, 0x48, 0x10,                   /*12d: mov    0x10(%rax),%rcx */
@@ -4458,15 +4458,22 @@ static uint8_t op_exec__text[] = {
 0x49, 0x8b, 0x46, 0x08,                   /*14f: mov    0x8(%r14),%rax */
 0x0f, 0xb7, 0x40, 0x02,                   /*153: movzwl 0x2(%rax),%eax */
 0x89, 0x43, 0x18,                         /*157: mov    %eax,0x18(%rbx) */
-0x49, 0x8b, 0x7e, 0x50,                   /*15a: mov    0x50(%r14),%rdi */
-0x48, 0x8b, 0x47, 0x18,                   /*15e: mov    0x18(%rdi),%rax */
+0x49, 0x8b, 0x46, 0x50,                   /*15a: mov    0x50(%r14),%rax */
+0x48, 0x8b, 0x40, 0x18,                   /*15e: mov    0x18(%rax),%rax */
 0x48, 0x8b, 0x40, 0x08,                   /*162: mov    0x8(%rax),%rax */
 0x49, 0x89, 0x46, 0x18,                   /*166: mov    %rax,0x18(%r14) */
-0x49, 0x8b, 0x76, 0x08,                   /*16a: mov    0x8(%r14),%rsi */
-0x48, 0x8b, 0x4e, 0x08,                   /*16e: mov    0x8(%rsi),%rcx */
-0x49, 0x89, 0x4e, 0x10,                   /*172: mov    %rcx,0x10(%r14) */
-0x4c, 0x89, 0xf2,                         /*176: mov    %r14,%rdx */
-0xe9, 0x00, 0x00, 0x00, 0x00,             /*179: jmpq   17e <op_exec+0x17e> */
+0x49, 0x8b, 0x46, 0x08,                   /*16a: mov    0x8(%r14),%rax */
+0x48, 0x8b, 0x50, 0x08,                   /*16e: mov    0x8(%rax),%rdx */
+0x49, 0x89, 0x56, 0x10,                   /*172: mov    %rdx,0x10(%r14) */
+0xbf, 0x00, 0x00, 0x00, 0x00,             /*176: mov    $0x0,%edi */
+0x31, 0xc0,                               /*17b: xor    %eax,%eax */
+0x4c, 0x89, 0xf6,                         /*17d: mov    %r14,%rsi */
+0xe8, 0x00, 0x00, 0x00, 0x00,             /*180: callq  185 <op_exec+0x185> */
+0x49, 0x8b, 0x7e, 0x50,                   /*185: mov    0x50(%r14),%rdi */
+0x49, 0x8b, 0x76, 0x08,                   /*189: mov    0x8(%r14),%rsi */
+0x49, 0x8b, 0x4e, 0x10,                   /*18d: mov    0x10(%r14),%rcx */
+0x4c, 0x89, 0xf2,                         /*191: mov    %r14,%rdx */
+0xe9, 0x00, 0x00, 0x00, 0x00,             /*194: jmpq   199 <op_exec+0x199> */
 
 };
 static uint8_t op_exec__rodata[] = {
@@ -4741,7 +4748,7 @@ static size_t op_sizes_text[] = {
   sizeof(op_oclass__text), /* 80 */
   sizeof(op_class__text), /* 221 */
   sizeof(op_module__text), /* 209 */
-  sizeof(op_exec__text), /* 382 */
+  sizeof(op_exec__text), /* 409 */
   sizeof(op_method__text), /* 65 */
   sizeof(op_sclass__text), /* 56 */
   sizeof(op_tclass__text), /* 199 */

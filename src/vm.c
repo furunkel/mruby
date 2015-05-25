@@ -50,7 +50,7 @@ The value below allows about 60000 recursive calls in the simplest case. */
 #define MRB_STACK_MAX (0x40000 - MRB_STACK_GROWTH)
 #endif
 
-//#define VM_DEBUG
+#define VM_DEBUG
 
 #ifdef VM_DEBUG
 # define DEBUG(x) (x)
@@ -1238,6 +1238,7 @@ op_loadnil(struct op_ctx *ctx) {
 }
 
 DBG_CONST(static char _str_const_op_send_dbg1[] = "op_send %s %p\n");
+DBG_CONST(static char _str_const_op_send_dbg2[] = "op_send PC %p %p\n");
 
 static inline void
 _op_send_static(struct op_ctx *ctx, mrb_value recv, struct RClass *c,
@@ -2670,6 +2671,7 @@ op_exec(struct op_ctx *ctx) {
     PC_SET(ctx, ctx->irep->iseq);
 
 #ifdef MRB_ENABLE_JIT
+    printf(_str_const_op_send_dbg2, ctx, ctx->pc);
     mrb_jit_enter(ctx->mrb, ctx->irep, ctx, ctx->pc);
     __builtin_unreachable();
 #endif

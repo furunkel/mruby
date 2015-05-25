@@ -5110,7 +5110,7 @@ static uint8_t op_exec__text[] = {
 0x5e,                                     /*15b: pop    %esi */
 0x5f,                                     /*15c: pop    %edi */
 0x5b,                                     /*15d: pop    %ebx */
-0xeb, 0x5b,                               /*15e: jmp    1bb <op_exec+0x1bb> */
+0xeb, 0x78,                               /*15e: jmp    1d8 <op_exec+0x1d8> */
 0x8b, 0x40, 0x0c,                         /*160: mov    0xc(%eax),%eax */
 0x89, 0x46, 0x04,                         /*163: mov    %eax,0x4(%esi) */
 0x8b, 0x48, 0x0c,                         /*166: mov    0xc(%eax),%ecx */
@@ -5126,17 +5126,24 @@ static uint8_t op_exec__text[] = {
 0x8b, 0x46, 0x04,                         /*18d: mov    0x4(%esi),%eax */
 0x0f, 0xb7, 0x40, 0x02,                   /*190: movzwl 0x2(%eax),%eax */
 0x89, 0x47, 0x0c,                         /*194: mov    %eax,0xc(%edi) */
-0x8b, 0x4e, 0x30,                         /*197: mov    0x30(%esi),%ecx */
-0x8b, 0x41, 0x0c,                         /*19a: mov    0xc(%ecx),%eax */
+0x8b, 0x46, 0x30,                         /*197: mov    0x30(%esi),%eax */
+0x8b, 0x40, 0x0c,                         /*19a: mov    0xc(%eax),%eax */
 0x8b, 0x40, 0x04,                         /*19d: mov    0x4(%eax),%eax */
 0x89, 0x46, 0x0c,                         /*1a0: mov    %eax,0xc(%esi) */
-0x8b, 0x56, 0x04,                         /*1a3: mov    0x4(%esi),%edx */
-0x8b, 0x42, 0x08,                         /*1a6: mov    0x8(%edx),%eax */
+0x8b, 0x46, 0x04,                         /*1a3: mov    0x4(%esi),%eax */
+0x8b, 0x40, 0x08,                         /*1a6: mov    0x8(%eax),%eax */
 0x89, 0x46, 0x08,                         /*1a9: mov    %eax,0x8(%esi) */
-0x89, 0x44, 0x24, 0x04,                   /*1ac: mov    %eax,0x4(%esp) */
-0x89, 0x34, 0x24,                         /*1b0: mov    %esi,(%esp) */
-0xe9, 0xfc, 0xff, 0xff, 0xff,             /*1b3: jmp    1b4 <op_exec+0x1b4> */
-0x83, 0xec, 0x08,                         /*1b8: sub    $0x8,%esp */
+0x89, 0x44, 0x24, 0x08,                   /*1ac: mov    %eax,0x8(%esp) */
+0x89, 0x74, 0x24, 0x04,                   /*1b0: mov    %esi,0x4(%esp) */
+0xc7, 0x04, 0x24, 0x00, 0x00, 0x00, 0x00, /*1b4: movl   $0x0,(%esp) */
+0xe8, 0xfc, 0xff, 0xff, 0xff,             /*1bb: call   1bc <op_exec+0x1bc> */
+0x8b, 0x4e, 0x30,                         /*1c0: mov    0x30(%esi),%ecx */
+0x8b, 0x56, 0x04,                         /*1c3: mov    0x4(%esi),%edx */
+0x8b, 0x46, 0x08,                         /*1c6: mov    0x8(%esi),%eax */
+0x89, 0x44, 0x24, 0x04,                   /*1c9: mov    %eax,0x4(%esp) */
+0x89, 0x34, 0x24,                         /*1cd: mov    %esi,(%esp) */
+0xe9, 0xfc, 0xff, 0xff, 0xff,             /*1d0: jmp    1d1 <op_exec+0x1d1> */
+0x83, 0xec, 0x08,                         /*1d5: sub    $0x8,%esp */
 
 };
 static uint8_t op_exec__rodata[] = {
@@ -5465,7 +5472,7 @@ static size_t op_sizes_text[] = {
   sizeof(op_oclass__text), /* 31 */
   sizeof(op_class__text), /* 207 */
   sizeof(op_module__text), /* 159 */
-  sizeof(op_exec__text), /* 443 */
+  sizeof(op_exec__text), /* 472 */
   sizeof(op_method__text), /* 77 */
   sizeof(op_sclass__text), /* 112 */
   sizeof(op_tclass__text), /* 220 */

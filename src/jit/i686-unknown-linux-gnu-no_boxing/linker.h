@@ -1066,7 +1066,9 @@ static void op_exec__text__link(uint8_t *text, uint8_t *rodata, mrb_code *pc) {
   *((int32_t *)(text + 307)) = (int32_t)(((uintptr_t)mrb_jit_enter) + (-4) - ((uintptr_t)(text + 307)));
   *((int32_t *)(text + 338)) = (int32_t)(((uintptr_t)cipop) + (-4) - ((uintptr_t)(text + 338)));
   *((int32_t *)(text + 393)) = (int32_t)(((uintptr_t)stack_extend) + (-4) - ((uintptr_t)(text + 393)));
-  *((int32_t *)(text + 436)) = (int32_t)(((uintptr_t)mrb_jit_enter) + (-4) - ((uintptr_t)(text + 436)));
+*((uint32_t *)(text + 439)) = (uint32_t)(((uintptr_t)_str_const_op_send_dbg2) + (0));
+  *((int32_t *)(text + 444)) = (int32_t)(((uintptr_t)printf) + (-4) - ((uintptr_t)(text + 444)));
+  *((int32_t *)(text + 465)) = (int32_t)(((uintptr_t)mrb_jit_enter) + (-4) - ((uintptr_t)(text + 465)));
 }
 static void op_exec_link(uint8_t *text, uint8_t *rodata, mrb_code *pc) {
   op_exec__rodata__link(text, rodata, pc);
