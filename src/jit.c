@@ -38,7 +38,7 @@
 #  error Platform not yet supported
 #endif
 
-//#define JIT_DEBUG
+#define JIT_DEBUG
 
 #ifdef JIT_DEBUG
 #define JIT_PRINTF(...) fprintf(stderr, __VA_ARGS__)
@@ -208,12 +208,13 @@ retry:
 static void
 jit_ctx_free(mrb_state *mrb, struct mrb_jit_ctx *ctx)
 {
+  size_t page_size = jit_page_size();
+  (void) page_size;
   JIT_PRINTF("deallocating page of size %zu (%ld pages)\n", ctx->size, ctx->size / page_size );
   if(munmap(ctx->text, ctx->size) < 0) {
     fprintf(stderr, "munmap failed: %s\n", strerror(errno));
   } else {
 #if defined(__x86_64__)
-    size_t page_size = jit_page_size();
     mark_page(ctx->text, ctx->size, page_size, PAGE_MARK_FREE);
 #endif
   }
