@@ -769,14 +769,6 @@ argnum_error(mrb_state *mrb, mrb_int num)
 #  define NO_INLINE
 #endif
 
-#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
-#  define FASTCALL __attribute__((fastcall))
-#elif defined _MSC_VER
-#  define FASTCALL __fastcall
-#else
-#  define FASTCALL
-#endif
-
 #if !defined(MRB_JIT_GEN) && !defined(MRB_VM_NO_INLINE)
 #  define OP_INLINE FORCE_INLINE
 #  define JIT_NO_INLINE
@@ -786,7 +778,7 @@ argnum_error(mrb_state *mrb, mrb_int num)
 #endif
 
 #if defined(__i386) || defined(_M_IX86)
-#  define OP_FUNC static FASTCALL OP_INLINE void
+#  define OP_FUNC static mrb_fastcall OP_INLINE void
 #else // defined(__x86_64__) || defined(_M_X64)
 #  define OP_FUNC static OP_INLINE void
 #endif
@@ -2783,11 +2775,11 @@ static void *link_funcs[1];
 #      endif
 #    elif defined(__i386)
 #      if defined(MRB_NAN_BOXING)
-#        include "jit/x86-unknown-linux-gnu-nan_boxing/linker.h"
+#        include "jit/i686-unknown-linux-gnu-nan_boxing/linker.h"
 #      elif defined(MRB_WORD_BOXING)
-#        include "jit/x86-unknown-linux-gnu-word_boxing/linker.h"
+#        include "jit/i686-unknown-linux-gnu-word_boxing/linker.h"
 #      else
-#        include "jit/x86-unknown-linux-gnu-no_boxing/linker.h"
+#        include "jit/i686-unknown-linux-gnu-no_boxing/linker.h"
 #      endif
 #    endif
 #  else
