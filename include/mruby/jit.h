@@ -7,15 +7,6 @@ extern "C" {
 
 #include "mruby.h"
 
-#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
-#  define mrb_fastcall __attribute__((fastcall))
-#elif defined _MSC_VER
-#  define mrb_fastcall __fastcall
-#else
-#  define mrb_fastcall
-#endif
-
-
 typedef struct mrb_jit_ctx {
     size_t text_size;
     size_t rodata_size;

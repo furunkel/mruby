@@ -206,6 +206,14 @@ typedef struct mrb_state {
 # define mrb_noreturn
 #endif
 
+#if defined(__GNUC__) || defined(__clang__) || defined(__INTEL_COMPILER)
+#  define mrb_fastcall __attribute__((fastcall))
+#elif defined _MSC_VER
+#  define mrb_fastcall __fastcall
+#else
+#  define mrb_fastcall
+#endif
+
 typedef mrb_value (*mrb_func_t)(mrb_state *mrb, mrb_value);
 MRB_API struct RClass *mrb_define_class(mrb_state *, const char*, struct RClass*);
 MRB_API struct RClass *mrb_define_module(mrb_state *, const char*);
