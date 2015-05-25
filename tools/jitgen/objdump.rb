@@ -66,17 +66,17 @@ ObjectFile = Struct.new(:filename, :sections) do
       io.puts "static void #{func_name}(#{obj.linker_params_to_c}) {"
       relocations.each do |offset, (type, args)|
         case type
-        when :R_X86_64_PC32
+        when :R_X86_64_PC32, :R_386_PC32
           # R_X86_64_PC32	2	word32	S+A-P
           s = "((uintptr_t)#{args[0]})"
           a = "(#{args[1]})"
           p = "((uintptr_t)(#{sane_name} + #{offset}))"
           io.puts "  *((int32_t *)(#{sane_name} + #{offset})) = (int32_t)(#{s} + #{a} - #{p});"
-        when :R_X86_64_32, :R_X86_64_32S, :R_X86_64_64
+        when :R_X86_64_32, :R_X86_64_32S, :R_X86_64_64, :R_386_32
           # R_X86_64_32	10	word32	S+A
 
           t = case type
-          when :R_X86_64_32 then "uint32_t"
+          when :R_X86_64_32, :R_386_32  then "uint32_t"
           when :R_X86_64_32S then "int32_t"
           when :R_X86_64_64 then "uint64_t"
           else raise

@@ -1,6 +1,5 @@
 
 static uint8_t op_nop__text[] = {
-0xc3,                                     /*0: retq */
 
 };
 static uint8_t op_nop__rodata[] = {
@@ -4736,7 +4735,7 @@ const uint8_t* ops_rodata[78];
 const char *op_names[78];
 
 static size_t op_sizes_text[] = {
-  sizeof(op_nop__text), /* 1 */
+  sizeof(op_nop__text), /* 0 */
   sizeof(op_move__text), /* 40 */
   sizeof(op_loadl__text), /* 44 */
   sizeof(op_loadi__text), /* 33 */

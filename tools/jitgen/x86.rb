@@ -31,6 +31,12 @@ module As
   module X86
     SUFFIXES = %i(q l w b)
 
+    class StRegister
+      def alias?(other)
+        other == self
+      end
+    end
+
     class Register
       ALIASES = [
           %i(rax eax ax al),

@@ -2,11 +2,11 @@ require_relative 'x86'
 
 class As::Instruction
   def target_register?(reg = nil)
-    target.is_a?(As::Register) && (!reg || reg.alias?(target))
+    target.register? && (!reg || reg.alias?(target))
   end
 
   def source_register?(reg = nil)
-    source.is_a?(As::Register) && (!reg || reg.alias?(source))
+    source.register? && (!reg || reg.alias?(source))
   end
 end
 
@@ -121,7 +121,7 @@ module Postprocess
     def process!
       super
       asm.each_instruction do |inst|
-        inst.delelte if inst.name =~ /(push|pop)/
+        inst.delete if inst.name =~ /(push|pop)/
       end
 
       asm.each_instruction.drop_while{|inst| !inst.x86_jump?}.each do |inst|

@@ -36,6 +36,20 @@ module As
     end
   end
 
+  module Node
+    def inst?
+      Instruction === self
+    end
+
+    def register?
+      Register === self
+    end
+
+    def label?
+      Label === self
+    end
+  end
+
   module List
     include Enumerable
 
@@ -103,12 +117,15 @@ module As
   SyntaxError = Class.new StandardError
   Directive = Struct.new :name, :arguments do
     include List
+    include Node
 
     def to_asm
       ".#{name} #{arguments.map(&:to_asm).join(', ')}"
     end
   end
   Constant = Struct.new(:value, :offset) do
+    include Node
+
     def self.[](*args)
       new *args
     end
@@ -163,17 +180,18 @@ module As
 
     def scan_operand scanner, inst
       number = /[+-]?(?:(0x\h+)|(?:\d+))/
-      scanner.scan(/(?<offset>(?:#{number})|(?:#{SYMBOL_REGEXP}))?\((?:%(?<base>\w+))?(?:,%(?<index>\w+))?(?:,(?<scale>\d+))?\)/) do |m|
+      scanner.scan(/(?:(?<offset_num>#{number})|(?:(?<offset_sym>#{SYMBOL_REGEXP})(?<offset_num>#{number})?))?\((?:%(?<base>\w+))?(?:,%(?<index>\w+))?(?:,(?<scale>\d+))?\)/) do |m|
 
-        if m[:offset]
-          offset = case m[:offset]
-          when /^#{number}/
-            eval m[:offset]
-          else
-            m[:offset]
-          end
+        offset = []
+        if m[:offset_sym]
+          offset << m[:offset_sym]
         end
-        o =  X86::Memory.new m[:offset] && offset,
+
+        if m[:offset_num]
+          offset << m[:offset_num]
+        end
+
+        o =  X86::Memory.new offset,
                              m[:base]   && X86::Register.new(m[:base].to_sym),
                              m[:index]  && X86::Register.new(m[:index].to_sym),
                              m[:scale]  && m[:scale].to_i
@@ -186,6 +204,11 @@ module As
         if m = scanner.scan(/([+-](?:(?:0x\h+)|(?:\d+)))/)
           o.offset = Integer m[1]
         end
+        return o
+      end
+
+      scanner.scan(/%st\s*\((\d)\)/) do |m|
+        o = X86::StRegister.new m[1].to_sym
         return o
       end
 
@@ -206,6 +229,7 @@ module As
   Instruction = Struct.new(:name, :operands, :star) do
     extend InstructionScanning
     include List
+    include Node
 
     def self.parse(str)
       scanner = Scanner.new(str)
@@ -223,7 +247,7 @@ module As
 
     def next_label
       l = @next
-      while l && !l.is_a?(Label)
+      while l && !l.label?(Label)
         l = l.next
       end
 
@@ -275,6 +299,8 @@ module As
   end
 
   Unparsed = Struct.new :data do
+    include Node
+
     def to_asm
       data
     end
@@ -283,6 +309,7 @@ module As
   Label = Struct.new(:name) do
     include List
     include Enumerable
+    include Node
 
     def to_asm(op = false)
       return name if op
@@ -293,6 +320,7 @@ module As
 
   Comment = Struct.new(:text) do
     include List
+    include Node
 
     def to_asm
       "##{text}"
@@ -301,12 +329,19 @@ module As
 
 
   Register = Struct.new(:name) do
+    include Node
+
+    def self.[](*args)
+      new(*args)
+    end
   end
 
   module X86
     Memory = Struct.new(:offset, :base, :index, :scale) do
+      include Node
+
       def to_asm
-        o = offset && offset.to_s
+        o = offset.join('')
         b = base && base.to_asm
         i = index && ',' + index.to_asm
         s = scale && ',' + scale.to_s
@@ -315,12 +350,26 @@ module As
     end
 
     class Register < As::Register
-      def self.[](*args)
-        new(*args)
-      end
+      include Node
 
       def to_asm
         "%#{name}"
+      end
+    end
+
+    StRegister = Struct.new(:index) do
+      include Node
+
+      def name
+        :st
+      end
+
+      def register?
+        true
+      end
+
+      def to_asm
+        "%#{name}(#{index})"
       end
     end
   end
