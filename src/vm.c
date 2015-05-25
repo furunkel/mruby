@@ -22,6 +22,10 @@
 #include "value_array.h"
 #include "mrb_throw.h"
 
+#ifdef MRB_ENABLE_JIT
+#  include "mruby/jit.h"
+#endif
+
 #ifndef ENABLE_STDIO
 #if defined(__cplusplus)
 extern "C" {
