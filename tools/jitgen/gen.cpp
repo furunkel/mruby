@@ -185,6 +185,7 @@ int main(int argc, const char **argv)
       CallInst *ci = CallInst::Create(clonedFunc, ctxArg, "", clonedFunc->back().getTerminator());
 
       clonedFunc->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
+      ci->setCallingConv(clonedFunc->getCallingConv());
 
       verifyModule(*opMod, &llvm::outs());
 
