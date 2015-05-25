@@ -27,11 +27,11 @@
 #    endif
 #  elif defined(__i386)
 #    if defined(MRB_NAN_BOXING)
-#      include "jit/x86-unknown-linux-gnu-nan_boxing/ops.h"
+#      include "jit/i686-unknown-linux-gnu-nan_boxing/ops.h"
 #    elif defined(MRB_WORD_BOXING)
-#      include "jit/x86-unknown-linux-gnu-word_boxing/ops.h"
+#      include "jit/i686-unknown-linux-gnu-word_boxing/ops.h"
 #    else
-#      include "jit/x86-unknown-linux-gnu-no_boxing/ops.h"
+#      include "jit/i686-unknown-linux-gnu-no_boxing/ops.h"
 #    endif
 #  endif
 #else
