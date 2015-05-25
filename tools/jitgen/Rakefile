@@ -124,7 +124,7 @@ def asm_dir(profile)
 end
 
 def ll_dir(profile)
-  File.join 'profiles', profile.boxing.to_s, 'll'
+  File.join profile_dir(profile), 'll'
 end
 
 def obj_file(profile, name)
@@ -257,7 +257,7 @@ profiles.each do |profile|
 
   file vm_ll => [vm_c_path, ll_dir(profile)] do |t|
     boxing_def = boxings[profile.boxing]
-    sh "clang -I#{File.join mruby_root, 'include'} -DMRB_JIT_GEN -DMRB_ENABLE_JIT\
+    sh "clang -target #{profile.triple} -I#{File.join mruby_root, 'include'} -DMRB_JIT_GEN -DMRB_ENABLE_JIT\
         -D#{boxing_def} -fomit-frame-pointer -emit-llvm -S -o #{t.name} -c #{vm_c_path}"
   end
 
