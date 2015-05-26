@@ -1238,7 +1238,7 @@ op_loadnil(struct op_ctx *ctx) {
 }
 
 DBG_CONST(static char _str_const_op_send_dbg1[] = "op_send %s %p\n");
-DBG_CONST(static char _str_const_op_send_dbg2[] = "op_send PC %p %p\n");
+DBG_CONST(static char _str_const_op_send_dbg2[] = "op_send PC %p %p %p %p\n");
 
 static inline void
 _op_send_static(struct op_ctx *ctx, mrb_value recv, struct RClass *c,
@@ -1388,7 +1388,7 @@ op_fsend(struct op_ctx *ctx) {
   /* A B C  R(A) := fcall(R(A),Syms(B),R(A+1),... ,R(A+C-1)) */
 }
 
-DBG_CONST(static char _str_const_op_return_dbg1[] = "return from: %s\n");
+DBG_CONST(static char _str_const_op_return_dbg1[] = "return from: %s to PC:%p\n");
 
 static inline void
 _op_return(struct op_ctx *ctx, int a, int b, mrb_code *pc) {
@@ -1472,7 +1472,7 @@ _op_return(struct op_ctx *ctx, int a, int b, mrb_code *pc) {
     PC_SET(ctx, ci->pc);
     ctx->regs = mrb->c->stack = ci->stackent;
 
-    VM_PRINTF(_str_const_op_return_dbg1, mrb_sym2name(ctx->mrb, ci->mid));
+    VM_PRINTF(_str_const_op_return_dbg1, mrb_sym2name(ctx->mrb, ci->mid), ctx->pc);
 
     if (acc == CI_ACC_SKIP) {
       mrb->jmp = ctx->prev_jmp;
@@ -2671,7 +2671,7 @@ op_exec(struct op_ctx *ctx) {
     PC_SET(ctx, ctx->irep->iseq);
 
 #ifdef MRB_ENABLE_JIT
-    printf(_str_const_op_send_dbg2, ctx, ctx->pc);
+    printf(_str_const_op_send_dbg2, ctx, ctx->pc, ci->pc, PC_GET(ctx));
     mrb_jit_enter(ctx->mrb, ctx->irep, ctx, ctx->pc);
     __builtin_unreachable();
 #endif

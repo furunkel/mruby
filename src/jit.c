@@ -489,7 +489,7 @@ mrb_jit_compile(mrb_state *mrb, mrb_irep *irep)
 mrb_fastcall mrb_bool
 mrb_jit_enter(mrb_state *mrb, struct mrb_irep *irep, void *ctx, mrb_code *pc)
 {
-  JIT_PRINTF("JIT: entering, mrb is %p\n", mrb);
+  JIT_PRINTF("JIT: entering, (mrb:%p irep:%p ctx:%p pc:%p)\n", mrb, irep, ctx, pc);
 
   if(MRB_UNLIKELY(!MRB_IREP_JITTED_P(irep))) {
     if(!mrb_jit_compile(mrb, irep)) {
@@ -498,7 +498,7 @@ mrb_jit_enter(mrb_state *mrb, struct mrb_irep *irep, void *ctx, mrb_code *pc)
     }
   }
 
-  JIT_PRINTF("JIT: entering irep: %p at %p (%ld) %d\n", irep, pc, pc - irep->iseq, GET_OPCODE(*pc));
+  JIT_PRINTF("JIT: entering irep: %p at %p(.text) (%ldth OP) %d OFF\n", irep, irep->jit_ctx.text, pc - irep->iseq, GET_OPCODE(*pc));
   MRB_JIT_CALL(irep, pc, ctx);
 
   /* never reached */

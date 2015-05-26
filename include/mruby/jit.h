@@ -28,7 +28,7 @@ struct mrb_irep;
   do {\
     unsigned index = (pc) - irep->iseq; \
     unsigned off = irep->jit_ctx.text_off_tbl[index]; \
-    mrb_fastcall void (*f)(void *) = (void *)(irep->jit_ctx.text + off); \
+    void (mrb_fastcall *f)(void *) = (void *)(irep->jit_ctx.text + off); \
     (*f)(op_ctx); \
   } while(0);
 

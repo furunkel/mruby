@@ -74,8 +74,10 @@ module Postprocess
         inst.call? && Label === inst.source && inst.source.name == 'mrb_jit_enter'
       end
 
-      insts.each do |inst|
-        inst.rename! 'jmp'
+      unless arch == :i686
+        insts.each do |inst|
+          inst.rename! 'jmp'
+        end
       end
 
       unless insts.empty?
@@ -144,7 +146,10 @@ module Postprocess
       call = asm.reverse_each_instruction.find {|inst| inst.call?}
       #call.insert_before Instruction.new('addq', [Constant.new(512), X86::Register[:rsp]])
       #call.insert_before Instruction.new('andq', [Constant.new(-512), X86::Register[:rsp]])
-      call.rename! 'jmp'
+      #
+      unless arch == :i686
+        call.rename! 'jmp'
+      end
     end
 
     def insert_return!

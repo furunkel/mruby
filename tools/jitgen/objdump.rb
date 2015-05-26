@@ -69,18 +69,10 @@ ObjectFile = Struct.new(:filename, :sections) do
         when :R_X86_64_PC32, :R_386_PC32
           # R_X86_64_PC32	2	word32	S+A-P
 
-          a = args[1] || if type == :R_386_PC32
-            # seeme like addresses are always off by 4 on 386,
-            # if addend is missing (it's there on X86_64)
-            # is this implicit ?
-            -0x4
-          else
-            0x0
-          end
           s = "((uintptr_t)#{args[0]})"
-          a = "(#{a})"
+          a = "(#{args[1]})"
           p = "((uintptr_t)(#{sane_name} + #{offset}))"
-          io.puts "  *((int32_t *)(#{sane_name} + #{offset})) = (int32_t)(#{s} + #{a} - #{p});"
+          io.puts "  *((int32_t *)(#{sane_name} + #{offset})) += (int32_t)(#{s} + #{a} - #{p});"
         when :R_X86_64_32, :R_X86_64_32S, :R_X86_64_64, :R_386_32
           # R_X86_64_32	10	word32	S+A
 
@@ -101,7 +93,7 @@ ObjectFile = Struct.new(:filename, :sections) do
 
           s = "((uintptr_t)#{sym})"
           a = "(#{args[1] || 0})"
-          io.puts "*((#{t} *)(#{sane_name} + #{offset})) = (#{t})(#{s} + #{a});"
+          io.puts "*((#{t} *)(#{sane_name} + #{offset})) += (#{t})(#{s} + #{a});"
         else
           raise "unknown relocation type `#{type}'"
         end
@@ -174,7 +166,7 @@ ObjectFile = Struct.new(:filename, :sections) do
             @asm << asm
           end
         elsif line =~ /^\s+(\h+):\s+(\w+)\s+(\.?\w+)((?:\+|\-)0x\h+)?/
-          self.relocations[$1.to_i(16)] = [$2.to_sym, [$3, $4 ? Integer($4) : nil]]
+          self.relocations[$1.to_i(16)] = [$2.to_sym, [$3, $4 ? Integer($4) : 0]]
           raise if $3.nil? || $3.empty?
         end
       end
