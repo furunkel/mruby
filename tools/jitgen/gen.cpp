@@ -182,10 +182,23 @@ int main(int argc, const char **argv)
       }
 
       Value *ctxArg = &(*clonedFunc->getArgumentList().begin());
-      CallInst *ci = CallInst::Create(clonedFunc, ctxArg, "", clonedFunc->back().getTerminator());
+    
+      //opMod->getDataLayout()->getIntPtrType(context),
+      Value *ctxGV = new GlobalVariable(*opMod,
+                       cast<PointerType>(ctxArg->getType())->getElementType(),
+                       false, GlobalValue::LinkageTypes::ExternalLinkage,
+                       nullptr, "__mrb_jit_ctx",
+                       (GlobalVariable*) nullptr);
+
+      Value *ctx = new BitCastInst(ctxGV, ctxArg->getType(), "ctx", clonedFunc->getEntryBlock().getFirstNonPHI());
+
+      ctxArg->replaceAllUsesWith(ctx);
+      clonedFunc->getArgumentList().clear();
+
+      //CallInst *ci = CallInst::Create(clonedFunc, ctxArg, "", clonedFunc->back().getTerminator());
 
       clonedFunc->setLinkage(GlobalValue::LinkageTypes::ExternalLinkage);
-      ci->setCallingConv(clonedFunc->getCallingConv());
+      //ci->setCallingConv(clonedFunc->getCallingConv());
 
       verifyModule(*opMod, &llvm::outs());
 

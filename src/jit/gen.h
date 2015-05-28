@@ -17,6 +17,7 @@ intptr_t __mrb_jit_Ax;
 intptr_t __mrb_jit_b;
 intptr_t __mrb_jit_c;
 intptr_t __mrb_jit_pc;
+intptr_t __mrb_jit_ctxxx;
 
 #undef GETARG_A
 #define GETARG_A(i) ((uintptr_t)(&__mrb_jit_A))
