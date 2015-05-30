@@ -50,7 +50,7 @@ The value below allows about 60000 recursive calls in the simplest case. */
 #define MRB_STACK_MAX (0x40000 - MRB_STACK_GROWTH)
 #endif
 
-#define VM_DEBUG
+//#define VM_DEBUG
 
 #ifdef VM_DEBUG
 # define DEBUG(x) (x)
@@ -826,12 +826,12 @@ argnum_error(mrb_state *mrb, mrb_int num)
 #endif
 
 struct op_ctx {
-  mrb_value *regs;
-  mrb_code *pc;
-  mrb_sym *syms;
-  mrb_value *pool;
   struct RProc *proc;
   mrb_irep *irep;
+  mrb_code *pc;
+  mrb_value *regs;
+  mrb_value *pool;
+  mrb_sym *syms;
   struct mrb_jmpbuf *prev_jmp;
   mrb_value retval;
   struct mrb_jmpbuf *stop_jmp;
@@ -848,15 +848,13 @@ struct op_ctx {
 #define PC_SET(v) (ctx->pc = v)
 #define PC_GET() (ctx->pc)
 #define I() (*(ctx->pc))
-#define MRB() (ctx->mrb)
-#define SETREG_A(v) ctx->regs[GETARG_A(I())] = v
-#define GETREG_A() ctx->regs[GETARG_A(I())]
-#define SETREG_A_1(v) ctx->regs[GETARG_A(I()) + 1] = v
-#define GETREG_A_1() ctx->regs[GETARG_A(I()) + 1]
-#define SETREG_B(v) ctx->regs[GETARG_B(I())] = v
-#define GETREG_B() ctx->regs[GETARG_B(I())]
-#define SETREG_B_1(v) ctx->regs[GETARG_B(I()) + 1] = v
-#define GETREG_B_1() ctx->regs[GETARG_B(I()) + 1]
+#define SETREG_A(v) (ctx->regs[GETARG_A(I())] = v)
+#define SETREG_A_1(v) (ctx->regs[GETARG_A(I()) + 1] = v)
+#define GETREG_A() (ctx->regs[GETARG_A(I())])
+#define GETREG_A_1() (ctx->regs[GETARG_A(I()) + 1])
+#define GETREG_B() (ctx->regs[GETARG_B(I())])
+#define GETREG_SELF() ctx->regs[0]
+#define MRB() ctx->mrb
 
 #ifdef MRB_JIT_GEN
 #include "jit/gen.h"
@@ -896,7 +894,6 @@ op_nop(struct op_ctx *ctx) {
 OP_FUNC
 op_move(struct op_ctx *ctx) {
   /* A B    R(A) := R(B) */
-  //struct op_ctx *ctx = (struct op_ctx *)&(__mrb_jit_ctxxx);
   SETREG_A(GETREG_B());
 }
 
@@ -921,7 +918,7 @@ op_loadsym(struct op_ctx *ctx) {
 OP_FUNC
 op_loadself(struct op_ctx *ctx) {
   /* A      R(A) := self */
-  SETREG_A(ctx->regs[0]);
+  SETREG_A(GETREG_SELF());
 }
 
 OP_FUNC
@@ -1008,7 +1005,6 @@ OP_FUNC
 op_getmcnst(struct op_ctx *ctx) {
   /* A Bx   R(A) := R(A)::Syms(Bx) */
   mrb_value val;
-  int a = GETARG_A(I());
 
   ERR_PC_SET(MRB(), PC_GET());
   val = mrb_const_get(MRB(), GETREG_A(), ctx->syms[GETARG_Bx(I())]);
@@ -1020,25 +1016,22 @@ op_getmcnst(struct op_ctx *ctx) {
 OP_FUNC
 op_setmcnst(struct op_ctx *ctx) {
   /* A Bx    R(A+1)::Syms(Bx) := R(A) */
-  int a = GETARG_A(I());
-
   mrb_const_set(MRB(), GETREG_A_1(), ctx->syms[GETARG_Bx(I())], GETREG_A());
 }
 
 OP_FUNC
 op_getupvar(struct op_ctx *ctx) {
   /* A B C  R(A) := uvget(B,C) */
-  mrb_value *regs_a = ctx->regs + GETARG_A(I());
   int up = GETARG_C(I());
 
   struct REnv *e = uvenv(MRB(), up);
 
   if (!e) {
-    *regs_a = mrb_nil_value();
+    SETREG_A(mrb_nil_value());
   }
   else {
     int idx = GETARG_B(I());
-    *regs_a = e->stack[idx];
+    SETREG_A(e->stack[idx]);
   }
 }
 
@@ -1050,9 +1043,8 @@ op_setupvar(struct op_ctx *ctx) {
   struct REnv *e = uvenv(MRB(), up);
 
   if (e) {
-    mrb_value *regs_a = ctx->regs + GETARG_A(I());
     int idx = GETARG_B(I());
-    e->stack[idx] = *regs_a;
+    e->stack[idx] = GETREG_A();
     mrb_write_barrier(MRB(), (struct RBasic*)e);
   }
 }
@@ -1103,7 +1095,6 @@ op_onerr(struct op_ctx *ctx) {
 OP_FUNC
 op_rescue(struct op_ctx *ctx) {
   /* A      R(A) := exc; clear(exc) */
-  int a = GETARG_A(I());
   SET_OBJ_VALUE(GETREG_A(), MRB()->exc);
   MRB()->exc = 0;
 }
@@ -1688,7 +1679,6 @@ OP_FUNC
 op_argary(struct op_ctx *ctx) {
 
   /* A Bx   R(A) := argument array (16=6:1:5:4) */
-  int a = GETARG_A(I());
   int bx = GETARG_Bx(I());
   int m1 = (bx>>10)&0x3f;
   int r  = (bx>>9)&0x1;
@@ -1987,7 +1977,6 @@ op_blkpush(struct op_ctx *ctx) {
   /* A Bx   R(A) := block (16=6:1:5:4) */
 
   mrb_state *mrb = MRB();
-  int a = GETARG_A(I());
   int bx = GETARG_Bx(I());
   int m1 = (bx>>10)&0x3f;
   int r  = (bx>>9)&0x1;
@@ -2473,7 +2462,6 @@ op_arypush(struct op_ctx *ctx) {
 OP_FUNC
 op_aref(struct op_ctx *ctx) {
   /* A B C          R(A) := R(B)[C] */
-  int a = GETARG_A(I());
   int c = GETARG_C(I());
   mrb_value v = GETREG_B();
 
@@ -2558,7 +2546,7 @@ op_hash(struct op_ctx *ctx) {
   mrb_value hash = mrb_hash_new_capa(MRB(), c);
 
   while (b < lim) {
-    mrb_hash_set(MRB(), hash, GETREG_B(), GETREG_B_1());
+    mrb_hash_set(MRB(), hash, ctx->regs[b], ctx->regs[b+1]);
     b+=2;
   }
   SETREG_A(hash);
@@ -2606,7 +2594,6 @@ op_class(struct op_ctx *ctx) {
   /* A B    R(A) := newclass(R(A),Syms(B),R(A+1)) */
 
   struct RClass *c = 0;
-  int a = GETARG_A(I());
   mrb_value base, super;
   mrb_sym id = ctx->syms[GETARG_B(I())];
 
@@ -2624,7 +2611,6 @@ OP_FUNC
 op_module(struct op_ctx *ctx) {
   /* A B            R(A) := newmodule(R(A),Syms(B)) */
   struct RClass *c = 0;
-  int a = GETARG_A(I());
   mrb_value base;
   mrb_sym id = ctx->syms[GETARG_B(I())];
 
@@ -2691,7 +2677,6 @@ op_exec(struct op_ctx *ctx) {
 OP_FUNC
 op_method(struct op_ctx *ctx) {
   /* A B            R(A).newmethod(Syms(B),R(A+1)) */
-  int a = GETARG_A(I());
   struct RClass *c = mrb_class_ptr(GETREG_A());
 
   struct RProc *p = mrb_proc_ptr(GETREG_A_1());
@@ -2724,7 +2709,7 @@ OP_FUNC
 op_range(struct op_ctx *ctx) {
   /* A B C  R(A) := range_new(R(B),R(B+1),C) */
   int b = GETARG_B(I());
-  SETREG_A(mrb_range_new(MRB(), GETREG_B(), GETREG_B_1(), GETARG_C(I())));
+  SETREG_A(mrb_range_new(MRB(), ctx->regs[b], ctx->regs[b+1], GETARG_C(I())));
   ARENA_RESTORE(MRB(), ctx->ai);
 }
 
