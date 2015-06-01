@@ -63,6 +63,8 @@ enum {
   OP_LOADT,/*     A       R(A) := true                                    */
   OP_LOADF,/*     A       R(A) := false                                   */
 
+  OP_GETLOCAL,/* A B      R(A) := L(Bx)                                   */
+  OP_SETLOCAL,/* A B      L(B) := R(A)                                    */
   OP_GETGLOBAL,/* A Bx    R(A) := getglobal(Syms(Bx))                     */
   OP_SETGLOBAL,/* A Bx    setglobal(Syms(Bx), R(A))                       */
   OP_GETSPECIAL,/*A Bx    R(A) := Special[Bx]                             */

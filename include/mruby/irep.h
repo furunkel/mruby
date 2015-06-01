@@ -38,7 +38,6 @@ typedef struct mrb_irep {
   uint16_t nlocals;        /* Number of local variables */
   uint16_t nregs;          /* Number of register variables */
   uint8_t flags;
-  uint8_t oalen;
 
   mrb_code *iseq;
   mrb_value *pool;
@@ -52,8 +51,6 @@ typedef struct mrb_irep {
   struct mrb_irep_debug_info* debug_info;
 
   size_t ilen, plen, slen, rlen, refcnt;
-
-  uint16_t oa_off[MRB_IREP_AOFF_LEN];
 #ifdef MRB_ENABLE_JIT
   mrb_jit_ctx jit_ctx;
 #endif

@@ -7,6 +7,7 @@
 #include <stddef.h>
 #include <stdarg.h>
 #include <math.h>
+#include <alloca.h>
 #include "mruby.h"
 #include "mruby/array.h"
 #include "mruby/class.h"
@@ -830,6 +831,8 @@ struct op_ctx {
   mrb_irep *irep;
   mrb_code *pc;
   mrb_value *regs;
+  mrb_value *stack;
+  mrb_value self;
   mrb_value *pool;
   mrb_sym *syms;
   struct mrb_jmpbuf *prev_jmp;
@@ -849,10 +852,12 @@ struct op_ctx {
 #define PC_GET() (ctx->pc)
 #define I() (*(ctx->pc))
 #define SETREG_A(v) (ctx->regs[GETARG_A(I())] = v)
+#define SETLOCAL_A(v) (ctx->stack[GETARG_A(I())] = v)
 #define SETREG_A_1(v) (ctx->regs[GETARG_A(I()) + 1] = v)
 #define GETREG_A() (ctx->regs[GETARG_A(I())])
 #define GETREG_A_1() (ctx->regs[GETARG_A(I()) + 1])
 #define GETREG_B() (ctx->regs[GETARG_B(I())])
+#define GETLOCAL_B() (ctx->stack[GETARG_B(I())])
 #define GETREG_SELF() ctx->regs[0]
 #define MRB() ctx->mrb
 
@@ -884,7 +889,6 @@ do {\
 } while(0);
 
 #endif
-
 
 OP_FUNC
 op_nop(struct op_ctx *ctx) {
@@ -931,6 +935,16 @@ OP_FUNC
 op_loadf(struct op_ctx *ctx) {
   /* A      R(A) := false */
   SET_FALSE_VALUE(GETREG_A());
+}
+
+OP_FUNC
+op_getlocal(struct op_ctx *ctx) {
+  SETREG_A(GETLOCAL_B());
+}
+
+OP_FUNC
+op_setlocal(struct op_ctx *ctx) {
+  SETLOCAL_A(GETREG_B());
 }
 
 OP_FUNC
@@ -991,7 +1005,7 @@ op_getconst(struct op_ctx *ctx) {
   ERR_PC_SET(MRB(), PC_GET());
   val = mrb_vm_const_get(MRB(), ctx->syms[GETARG_Bx(I())]);
   ERR_PC_CLR(MRB());
-  ctx->regs = MRB()->c->stack;
+  ctx->stack = MRB()->c->stack;
   SETREG_A(val);
 }
 
@@ -1009,7 +1023,7 @@ op_getmcnst(struct op_ctx *ctx) {
   ERR_PC_SET(MRB(), PC_GET());
   val = mrb_const_get(MRB(), GETREG_A(), ctx->syms[GETARG_Bx(I())]);
   ERR_PC_CLR(MRB());
-  ctx->regs = MRB()->c->stack;
+  ctx->stack = MRB()->c->stack;
   SETREG_A(val);
 }
 
@@ -1124,7 +1138,7 @@ _op_stop(struct op_ctx *ctx) {
   if (MRB()->exc) {
     ctx->retval = mrb_obj_value(MRB()->exc);
   }
-  ctx->retval = ctx->regs[ctx->irep->nlocals];
+  ctx->retval = ctx->stack[ctx->irep->nlocals];
 
   MRB_THROW(ctx->stop_jmp);
 }
@@ -1138,7 +1152,7 @@ _op_rescue(struct op_ctx *ctx, mrb_callinfo *ci) {
   ctx->irep = ctx->proc->body.irep;
   ctx->pool = ctx->irep->pool;
   ctx->syms = ctx->irep->syms;
-  ctx->regs = MRB()->c->stack = ci[1].stackent;
+  ctx->stack = MRB()->c->stack = ci[1].stackent;
   PC_SET(MRB()->c->rescue[--ci->ridx]);
 }
 
@@ -1168,7 +1182,7 @@ _op_raise(struct op_ctx *ctx, mrb_code *pc) {
     if (ci == MRB()->c->cibase) {
       if (ci->ridx == 0) {
         if (MRB()->c == MRB()->root_c) {
-          ctx->regs = MRB()->c->stack = MRB()->c->stbase;
+          ctx->stack = MRB()->c->stack = MRB()->c->stbase;
           return _op_stop(ctx);
         }
         else {
@@ -1308,7 +1322,7 @@ _op_send_static(struct op_ctx *ctx, mrb_value recv, struct RClass *c,
         ctx->syms = ctx->irep->syms;
       }
     }
-    ctx->regs = MRB()->c->stack = ci->stackent;
+    ctx->stack = MRB()->c->stack = ci->stackent;
     PC_SET(ci->pc);
     cipop(MRB());
   }
@@ -1327,7 +1341,7 @@ _op_send_static(struct op_ctx *ctx, mrb_value recv, struct RClass *c,
       ci->argc = n;
       stack_extend(MRB(), ctx->irep->nregs,  n+2);
     }
-    ctx->regs = MRB()->c->stack;
+    ctx->stack = MRB()->c->stack;
     PC_SET(ctx->irep->iseq);
   }
 }
@@ -1643,7 +1657,7 @@ op_super(struct op_ctx *ctx) {
     mrb_gc_arena_restore(MRB(), ctx->ai);
     if (MRB()->exc) _OP_RAISE(ctx, PC_GET());
     /* pop stackpos */
-    ctx->regs = MRB()->c->stack = MRB()->c->ci->stackent;
+    ctx->stack = MRB()->c->stack = MRB()->c->ci->stackent;
     cipop(MRB());
     PC_INC();
   }
@@ -1663,7 +1677,7 @@ op_super(struct op_ctx *ctx) {
     else {
       stack_extend(MRB(), ctx->irep->nregs, ci->argc+2);
     }
-    ctx->regs = MRB()->c->stack;
+    ctx->stack = MRB()->c->stack;
     PC_SET(ctx->irep->iseq);
 
 #ifdef MRB_ENABLE_JIT
@@ -1687,7 +1701,7 @@ op_argary(struct op_ctx *ctx) {
   mrb_value *stack;
 
   if (lv == 0) {
-    stack = ctx->regs + 1;
+    stack = ctx->stack + 1;
   }
   else {
     struct REnv *e = uvenv(MRB(), lv-1);
@@ -1851,7 +1865,7 @@ op_enter(struct op_ctx *ctx) {
       pc += 1;
     }
     else {
-      pc += ctx->irep->oa_off[argc - m1 - m2];
+      pc += argc - m1 - m2;
     }
   }
   else {
@@ -1874,7 +1888,7 @@ op_enter(struct op_ctx *ctx) {
     }
 
     if(o > 0) {
-      pc += ctx->irep->oa_off[o];
+      pc += o;
     }
     else {
       pc += 1;
@@ -2811,6 +2825,7 @@ mrb_context_run(mrb_state *mrb, struct RProc *proc, mrb_value self, unsigned int
     &&L_OP_NOP, &&L_OP_MOVE,
     &&L_OP_LOADL, &&L_OP_LOADI, &&L_OP_LOADSYM, &&L_OP_LOADNIL,
     &&L_OP_LOADSELF, &&L_OP_LOADT, &&L_OP_LOADF,
+    &&L_OP_GETLOCAL, &&L_OP_SETLOCAL,
     &&L_OP_GETGLOBAL, &&L_OP_SETGLOBAL, &&L_OP_GETSPECIAL, &&L_OP_SETSPECIAL,
     &&L_OP_GETIV, &&L_OP_SETIV, &&L_OP_GETCV, &&L_OP_SETCV,
     &&L_OP_GETCONST, &&L_OP_SETCONST, &&L_OP_GETMCNST, &&L_OP_SETMCNST,
@@ -2835,7 +2850,7 @@ mrb_context_run(mrb_state *mrb, struct RProc *proc, mrb_value self, unsigned int
   ctx.proc = proc;
   ctx.irep = proc->body.irep;
   ctx.pc   = ctx.irep->iseq;
-  ctx.regs = NULL;
+  ctx.regs = alloca(sizeof(mrb_value) * 16);
   ctx.pool = proc->body.irep->pool;
   ctx.syms = proc->body.irep->syms;
   ctx.ai = mrb_gc_arena_save(mrb);
@@ -2870,8 +2885,8 @@ RETRY_TRY_BLOCK:
   stack_extend(mrb, ctx.irep->nregs, stack_keep);
   mrb->c->ci->proc = proc;
   mrb->c->ci->nregs = ctx.irep->nregs;
-  ctx.regs = mrb->c->stack;
-  ctx.regs[0] = self;
+  ctx.stack = mrb->c->stack;
+  ctx.self = self;
 
 #ifdef MRB_ENABLE_JIT
   ctx.i = *ctx.pc;
@@ -2920,6 +2935,16 @@ RETRY_TRY_BLOCK:
 
     CASE(OP_LOADF) {
       op_loadf(&ctx);
+      NEXT;
+    }
+
+    CASE(OP_GETLOCAL) {
+      op_getlocal(&ctx);
+      NEXT;
+    }
+
+    CASE(OP_SETLOCAL) {
+      op_setlocal(&ctx);
       NEXT;
     }
 
