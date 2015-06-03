@@ -1851,7 +1851,7 @@ op_enter(struct op_ctx *ctx) {
       pc += 1;
     }
     else {
-      pc += ctx->irep->oa_off[argc - m1 - m2];
+      pc += argc - m1 - m2 + 1;
     }
   }
   else {
@@ -1874,7 +1874,7 @@ op_enter(struct op_ctx *ctx) {
     }
 
     if(o > 0) {
-      pc += ctx->irep->oa_off[o];
+      pc += o + 1;
     }
     else {
       pc += 1;

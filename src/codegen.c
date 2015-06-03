@@ -679,35 +679,30 @@ lambda_body(codegen_scope *s, node *tree, int blk, int type)
     }
     else {
       genop(s, MKOP_Ax(OP_ENTER, a));
-    }
-    pos = s->pc;
-
-    opt = tree->car->cdr->car;
-    i = 0;
-
-    while (opt) {
-      int idx;
-
-      codegen(s, opt->car->cdr, VAL);
-      idx = lv_idx(s, (mrb_sym)(intptr_t)opt->car->car);
-      pop();
-      genop_peep(s, MKOP_AB(OP_MOVE, idx, cursp()), NOVAL);
-
-      s->irep->oa_off[i + 1] = s->pc - pos + 1;
-
-      i++;
-      opt = opt->cdr;
-    }
-
-    s->irep->oalen = oa + 1;
-    s->irep->oa_off[0] = 1;
-
-    if (oa > 0) {
-      DEBUG(fprintf(stderr, "oa_off: %d %p\n", oa, s->irep));
-      for (i=0; i<oa + 1; i++) {
-        DEBUG(fprintf(stderr, "   %d:%d\n", i, s->irep->oa_off[i]));
+      pos = new_label(s);
+      for (i=0; i<oa; i++) {
+        new_label(s);
+        genop(s, MKOP_sBx(OP_JMP, 0));
       }
+      if (oa > 0) {
+        genop(s, MKOP_sBx(OP_JMP, 0));
+      }
+      opt = tree->car->cdr->car;
+      i = 0;
+      while (opt) {
+        int idx;
 
+        dispatch(s, pos+i);
+        codegen(s, opt->car->cdr, VAL);
+        idx = lv_idx(s, (mrb_sym)(intptr_t)opt->car->car);
+        pop();
+        genop_peep(s, MKOP_AB(OP_MOVE, idx, cursp()), NOVAL);
+        i++;
+        opt = opt->cdr;
+      }
+      if (oa > 0) {
+        dispatch(s, pos+i);
+      }
     }
   }
 
@@ -2755,8 +2750,6 @@ mrb_generate_code(mrb_state *mrb, parser_state *p)
   scope->filename_index = p->current_filename_index;
 
   MRB_TRY(&scope->jmp) {
-    int i;
-
     /* prepare irep */
     codegen(scope, p->tree, NOVAL);
     proc = mrb_proc_new(mrb, scope->irep);
