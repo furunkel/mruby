@@ -66,6 +66,19 @@ read_irep_record_1(mrb_state *mrb, const uint8_t *bin, size_t *len, uint8_t flag
   irep->rlen = (size_t)bin_to_uint16(src);
   src += sizeof(uint16_t);
 
+  /* Optional Variable Offset Table */
+  {
+    int i;
+
+    irep->oalen = bin_to_uint16(src);
+    src += sizeof(uint16_t);
+
+    for (i = 0; i < irep->oalen; i++) {
+      irep->oa_off[i] = bin_to_uint16(src);
+      src += sizeof(uint16_t);
+    }
+  }
+
   /* Binary Data Section */
   /* ISEQ BLOCK */
   irep->ilen = (size_t)bin_to_uint32(src);
@@ -439,7 +452,7 @@ read_lv_record(mrb_state *mrb, const uint8_t *start, mrb_irep *irep, size_t *rec
   size_t i;
   ptrdiff_t diff;
 
-  irep->lv = (struct mrb_locals*)mrb_malloc(mrb, sizeof(struct mrb_locals) * (irep->nlocals));
+  irep->lv = (struct mrb_locals*)mrb_malloc(mrb, sizeof(struct mrb_locals) * (irep->nlocals - 1));
 
   for (i = 0; i + 1< irep->nlocals; ++i) {
     uint16_t const sym_idx = bin_to_uint16(bin);

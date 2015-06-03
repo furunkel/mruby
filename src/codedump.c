@@ -7,7 +7,7 @@
 
 #ifdef ENABLE_STDIO
 static int
-print_l(mrb_state *mrb, mrb_irep *irep, size_t n, int pre)
+print_r(mrb_state *mrb, mrb_irep *irep, size_t n, int pre)
 {
   size_t i;
 
@@ -17,7 +17,7 @@ print_l(mrb_state *mrb, mrb_irep *irep, size_t n, int pre)
     if (irep->lv[i].r == n) {
       mrb_sym sym = irep->lv[i].name;
       if (pre) printf(" ");
-      printf("L%d:%s", (int)n, mrb_sym2name(mrb, sym));
+      printf("R%d:%s", (int)n, mrb_sym2name(mrb, sym));
       return 1;
     }
   }
@@ -34,17 +34,17 @@ print_lv(mrb_state *mrb, mrb_irep *irep, mrb_code c, int r)
   int pre = 0;
 
   if (!irep->lv
-      || ((!(r & RA))
-       && (!(r & RB)))) {
+      || ((!(r & RA) || GETARG_A(c) >= irep->nlocals)
+       && (!(r & RB) || GETARG_B(c) >= irep->nlocals))) {
     printf("\n");
     return;
   }
   printf("\t; ");
   if (r & RA) {
-    pre = print_l(mrb, irep, GETARG_A(c), 0);
+    pre = print_r(mrb, irep, GETARG_A(c), 0);
   }
   if (r & RB) {
-    print_l(mrb, irep, GETARG_B(c), pre);
+    print_r(mrb, irep, GETARG_B(c), pre);
   }
   printf("\n");
 }
@@ -87,7 +87,8 @@ codedump(mrb_state *mrb, mrb_irep *irep)
       printf("OP_NOP\n");
       break;
     case OP_MOVE:
-      printf("OP_MOVE\tR%d\tR%d\n", GETARG_A(c), GETARG_B(c));
+      printf("OP_MOVE\tR%d\tR%d\t", GETARG_A(c), GETARG_B(c));
+      print_lv(mrb, irep, c, RAB);
       break;
     case OP_LOADL:
       {
@@ -121,14 +122,6 @@ codedump(mrb_state *mrb, mrb_irep *irep)
     case OP_LOADF:
       printf("OP_LOADF\tR%d\t\t", GETARG_A(c));
       print_lv(mrb, irep, c, RA);
-      break;
-    case OP_GETLOCAL:
-      printf("OP_GETLOCAL\tR%d\tL%d\t", GETARG_A(c), GETARG_B(c));
-      print_lv(mrb, irep, c, RAB);
-      break;
-    case OP_SETLOCAL:
-      printf("OP_SETLOCAL\tL%d\tR%d\t", GETARG_A(c), GETARG_B(c));
-      print_lv(mrb, irep, c, RAB);
       break;
     case OP_GETGLOBAL:
       printf("OP_GETGLOBAL\tR%d\t:%s", GETARG_A(c),
