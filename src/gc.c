@@ -97,7 +97,7 @@ struct free_obj {
   struct RBasic *next;
 };
 
-typedef struct {
+typedef struct infreq_value {
   union {
     struct free_obj free;
     struct RBasic basic;
@@ -107,7 +107,7 @@ typedef struct {
   } as;
 } infreq_value;
 
-typedef struct {
+typedef struct small_value {
   union {
     struct free_obj free;
     struct RBasic basic;
@@ -119,7 +119,7 @@ typedef struct {
   } as;
 } small_value;
 
-typedef struct {
+typedef struct large_value {
   union {
     struct free_obj free;
     struct RBasic basic;
@@ -205,6 +205,7 @@ gettimeofday_time(void)
 #ifndef MRB_HEAP_PAGE_SIZE
 #define MRB_HEAP_PAGE_SIZE 1024
 #endif
+
 
 #define GC_STEP_SIZE 1024
 
@@ -356,11 +357,14 @@ unlink_free_heap_page(mrb_heap *heap, mrb_heap_page *page)
 static const size_t
 value_sizes[] = {sizeof(small_value), sizeof(large_value), sizeof(infreq_value)};
 
+static const size_t
+heap_page_n_objs[] = {512, 512, 100};
+
 static void
 add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
 {
   size_t object_size = value_sizes[type];
-  size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+  size_t objects_size = heap_page_n_objs[type] * object_size;
   mrb_heap_page *page = (mrb_heap_page *)mrb_calloc(mrb, 1, sizeof(mrb_heap_page) + objects_size);
   uint8_t *p, *e;
   struct RBasic *prev = NULL;
@@ -427,7 +431,7 @@ static void
 free_heap(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
 {
   size_t object_size = value_sizes[type];
-  size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+  size_t objects_size = heap_page_n_objs[type] * object_size;
   mrb_heap_page *page = heap->heaps;
   mrb_heap_page *tmp;
   uint8_t *p, *e;
@@ -1041,7 +1045,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
 
   for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
     size_t object_size = value_sizes[i];
-    size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+    size_t objects_size = heap_page_n_objs[i] * object_size;
     mrb_heap *heap = &gc->heaps[i];
     mrb_heap_page *page = heap->sweeps;
 
@@ -1078,7 +1082,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
       }
 
       /* free dead slot */
-      if (dead_slot && freed < MRB_HEAP_PAGE_SIZE) {
+      if (dead_slot && freed < heap_page_n_objs[i]) {
         mrb_heap_page *next = page->next;
 
         unlink_heap_page(heap, page);
@@ -1096,7 +1100,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
           page->old = FALSE;
         page = page->next;
       }
-      tried_sweep += MRB_HEAP_PAGE_SIZE;
+      tried_sweep += heap_page_n_objs[i];
       gc->live -= freed;
       gc->live_after_mark -= freed;
     }
@@ -1518,7 +1522,7 @@ gc_each_objects(mrb_state *mrb, mrb_gc *gc, mrb_each_object_callback *callback, 
   for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
     mrb_heap_page* page = gc->heaps[i].heaps;
     size_t object_size = value_sizes[i];
-    size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+    size_t objects_size = heap_page_n_objs[i] * object_size;
 
     while (page != NULL) {
       uint8_t *p, *e;
