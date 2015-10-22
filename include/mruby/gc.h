@@ -31,6 +31,13 @@ typedef enum {
   MRB_GC_STATE_SWEEP
 } mrb_gc_state;
 
+typedef enum mrb_heap_type {
+  MRB_HEAP_TYPE_SMALL,
+  MRB_HEAP_TYPE_LARGE,
+  MRB_HEAP_TYPE_INFREQ,
+  MRB_N_HEAP_TYPES
+} mrb_heap_type;
+
 typedef struct mrb_heap_page {
   struct RBasic *freelist;
   struct mrb_heap_page *prev;
@@ -38,13 +45,17 @@ typedef struct mrb_heap_page {
   struct mrb_heap_page *free_next;
   struct mrb_heap_page *free_prev;
   mrb_bool old:1;
-  void *objects[];
+  uint8_t objects[];
 } mrb_heap_page;
 
-typedef struct mrb_gc {
+typedef struct mrb_heap {
   mrb_heap_page *heaps;                /* heaps for GC */
   mrb_heap_page *sweeps;
   mrb_heap_page *free_heaps;
+} mrb_heap;
+
+typedef struct mrb_gc {
+  mrb_heap heaps[MRB_N_HEAP_TYPES];
   size_t live; /* count of live objects */
 #ifdef MRB_GC_FIXED_ARENA
   struct RBasic *arena[MRB_GC_ARENA_SIZE]; /* GC protection array */

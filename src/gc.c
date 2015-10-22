@@ -101,6 +101,41 @@ typedef struct {
   union {
     struct free_obj free;
     struct RBasic basic;
+    struct RClass klass;
+    struct RProc proc;
+    struct RException exc;
+  } as;
+} infreq_value;
+
+typedef struct {
+  union {
+    struct free_obj free;
+    struct RBasic basic;
+    struct RObject object;
+#ifdef MRB_WORD_BOXING
+    struct RFloat floatv;
+    struct RCptr cptr;
+#endif
+  } as;
+} small_value;
+
+typedef struct {
+  union {
+    struct free_obj free;
+    struct RBasic basic;
+    struct RString string;
+    struct RArray array;
+    struct RHash hash;
+    struct RRange range;
+    struct RData data;
+  } as;
+} large_value;
+
+#if 0
+typedef struct {
+  union {
+    struct free_obj free;
+    struct RBasic basic;
     struct RObject object;
     struct RClass klass;
     struct RString string;
@@ -116,6 +151,7 @@ typedef struct {
 #endif
   } as;
 } RVALUE;
+#endif
 
 #ifdef GC_PROFILE
 #include <stdio.h>
@@ -273,66 +309,85 @@ mrb_object_dead_p(mrb_state *mrb, struct RBasic *object) {
 }
 
 static void
-link_heap_page(mrb_gc *gc, mrb_heap_page *page)
+link_heap_page(mrb_heap *heap, mrb_heap_page *page)
 {
-  page->next = gc->heaps;
-  if (gc->heaps)
-    gc->heaps->prev = page;
-  gc->heaps = page;
+  page->next = heap->heaps;
+  if (heap->heaps)
+    heap->heaps->prev = page;
+  heap->heaps = page;
 }
 
 static void
-unlink_heap_page(mrb_gc *gc, mrb_heap_page *page)
+unlink_heap_page(mrb_heap *heap, mrb_heap_page *page)
 {
   if (page->prev)
     page->prev->next = page->next;
   if (page->next)
     page->next->prev = page->prev;
-  if (gc->heaps == page)
-    gc->heaps = page->next;
+  if (heap->heaps == page)
+    heap->heaps = page->next;
   page->prev = NULL;
   page->next = NULL;
 }
 
 static void
-link_free_heap_page(mrb_gc *gc, mrb_heap_page *page)
+link_free_heap_page(mrb_heap *heap, mrb_heap_page *page)
 {
-  page->free_next = gc->free_heaps;
-  if (gc->free_heaps) {
-    gc->free_heaps->free_prev = page;
+  page->free_next = heap->free_heaps;
+  if (heap->free_heaps) {
+    heap->free_heaps->free_prev = page;
   }
-  gc->free_heaps = page;
+  heap->free_heaps = page;
 }
 
 static void
-unlink_free_heap_page(mrb_gc *gc, mrb_heap_page *page)
+unlink_free_heap_page(mrb_heap *heap, mrb_heap_page *page)
 {
   if (page->free_prev)
     page->free_prev->free_next = page->free_next;
   if (page->free_next)
     page->free_next->free_prev = page->free_prev;
-  if (gc->free_heaps == page)
-    gc->free_heaps = page->free_next;
+  if (heap->free_heaps == page)
+    heap->free_heaps = page->free_next;
   page->free_prev = NULL;
   page->free_next = NULL;
 }
 
+static const size_t
+value_sizes[] = {sizeof(small_value), sizeof(large_value), sizeof(infreq_value)};
+
 static void
-add_heap(mrb_state *mrb, mrb_gc *gc)
+add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
 {
-  mrb_heap_page *page = (mrb_heap_page *)mrb_calloc(mrb, 1, sizeof(mrb_heap_page) + MRB_HEAP_PAGE_SIZE * sizeof(RVALUE));
-  RVALUE *p, *e;
+  size_t object_size = value_sizes[type];
+  size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+  mrb_heap_page *page = (mrb_heap_page *)mrb_calloc(mrb, 1, sizeof(mrb_heap_page) + objects_size);
+  uint8_t *p, *e;
   struct RBasic *prev = NULL;
 
-  for (p = objects(page), e=p+MRB_HEAP_PAGE_SIZE; p<e; p++) {
-    p->as.free.tt = MRB_TT_FREE;
-    p->as.free.next = prev;
-    prev = &p->as.basic;
+  for (p = page->objects, e = p + objects_size; p < e; p += object_size) {
+    struct free_obj *o = (struct free_obj *) p;
+    o->tt = MRB_TT_FREE;
+    o->next = prev;
+    prev = (struct RBasic *) o;
   }
+
   page->freelist = prev;
 
-  link_heap_page(gc, page);
-  link_free_heap_page(gc, page);
+  link_heap_page(heap,page);
+  link_free_heap_page(heap, page);
+}
+
+static void
+init_heaps(mrb_state *mrb, mrb_gc *gc)
+{
+  int i;
+
+  for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
+    gc->heaps[i].heaps = NULL;
+    gc->heaps[i].free_heaps = NULL;
+    add_heap_page(mrb, gc, &gc->heaps[i], (mrb_heap_type) i);
+  }
 }
 
 #define DEFAULT_GC_INTERVAL_RATIO 200
@@ -351,9 +406,9 @@ mrb_gc_init(mrb_state *mrb, mrb_gc *gc)
 #endif
 
   gc->current_white_part = GC_WHITE_A;
-  gc->heaps = NULL;
-  gc->free_heaps = NULL;
-  add_heap(mrb, gc);
+
+  init_heaps(mrb, gc);
+
   gc->interval_ratio = DEFAULT_GC_INTERVAL_RATIO;
   gc->step_ratio = DEFAULT_GC_STEP_RATIO;
 #ifndef MRB_GC_TURN_OFF_GENERATIONAL
@@ -368,28 +423,43 @@ mrb_gc_init(mrb_state *mrb, mrb_gc *gc)
 
 static void obj_free(mrb_state *mrb, struct RBasic *obj);
 
-void
-free_heap(mrb_state *mrb, mrb_gc *gc)
+static void
+free_heap(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
 {
-  mrb_heap_page *page = gc->heaps;
+  size_t object_size = value_sizes[type];
+  size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+  mrb_heap_page *page = heap->heaps;
   mrb_heap_page *tmp;
-  RVALUE *p, *e;
+  uint8_t *p, *e;
 
   while (page) {
     tmp = page;
     page = page->next;
-    for (p = objects(tmp), e=p+MRB_HEAP_PAGE_SIZE; p<e; p++) {
-      if (p->as.free.tt != MRB_TT_FREE)
-        obj_free(mrb, &p->as.basic);
+
+    for (p = tmp->objects, e = p + objects_size; p < e; p += object_size) {
+      struct free_obj *o = (struct free_obj *) p;
+      if (o->tt != MRB_TT_FREE)
+        obj_free(mrb, (struct RBasic *) o);
     }
+
     mrb_free(mrb, tmp);
+  }
+}
+
+static void
+free_heaps(mrb_state *mrb, mrb_gc *gc)
+{
+  int i;
+
+  for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
+    free_heap(mrb, gc, &gc->heaps[i], (mrb_heap_type) i);
   }
 }
 
 void
 mrb_gc_destroy(mrb_state *mrb, mrb_gc *gc)
 {
-  free_heap(mrb, gc);
+  free_heaps(mrb, gc);
 #ifndef MRB_GC_FIXED_ARENA
   mrb_free(mrb, gc->arena);
 #endif
@@ -469,12 +539,33 @@ mrb_gc_unregister(mrb_state *mrb, mrb_value obj)
   a->len = j;
 }
 
+static mrb_heap_type
+heap_type_for_vtype(enum mrb_vtype tt) {
+  switch (tt) {
+  case MRB_TT_ICLASS:
+  case MRB_TT_CLASS:
+  case MRB_TT_MODULE:
+  case MRB_TT_SCLASS:
+  case MRB_TT_EXCEPTION:
+  case MRB_TT_PROC:
+    return MRB_HEAP_TYPE_INFREQ;
+
+  case MRB_TT_OBJECT:
+    return MRB_HEAP_TYPE_SMALL;
+
+  default:
+    return MRB_HEAP_TYPE_LARGE;
+  }
+}
+
 MRB_API struct RBasic*
 mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
 {
   struct RBasic *p;
-  static const RVALUE RVALUE_zero = { { { MRB_TT_FALSE } } };
   mrb_gc *gc = &mrb->gc;
+  mrb_heap_type htype = heap_type_for_vtype(ttype);
+  mrb_heap *heap = &gc->heaps[htype];
+  size_t object_size = value_sizes[htype];
 
 #ifdef MRB_GC_STRESS
   mrb_full_gc(mrb);
@@ -482,19 +573,20 @@ mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
   if (gc->threshold < gc->live) {
     mrb_incremental_gc(mrb);
   }
-  if (gc->free_heaps == NULL) {
-    add_heap(mrb, gc);
+
+  if (heap->free_heaps == NULL) {
+    add_heap_page(mrb, gc, heap, htype);
   }
 
-  p = gc->free_heaps->freelist;
-  gc->free_heaps->freelist = ((struct free_obj*)p)->next;
-  if (gc->free_heaps->freelist == NULL) {
-    unlink_free_heap_page(gc, gc->free_heaps);
+  p = heap->free_heaps->freelist;
+  heap->free_heaps->freelist = ((struct free_obj*)p)->next;
+  if (heap->free_heaps->freelist == NULL) {
+    unlink_free_heap_page(heap, heap->free_heaps);
   }
 
   gc->live++;
   gc_protect(mrb, gc, p);
-  *(RVALUE *)p = RVALUE_zero;
+  memset(p, 0, object_size);
   p->tt = ttype;
   p->c = cls;
   paint_partial_white(gc, p);
@@ -928,73 +1020,88 @@ final_marking_phase(mrb_state *mrb, mrb_gc *gc)
   mrb_assert(gc->gray_list == NULL);
 }
 
+
 static void
 prepare_incremental_sweep(mrb_state *mrb, mrb_gc *gc)
 {
+  int i;
   gc->state = MRB_GC_STATE_SWEEP;
-  gc->sweeps = gc->heaps;
+  for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
+    gc->heaps[i].sweeps = gc->heaps[i].heaps;
+  }
   gc->live_after_mark = gc->live;
 }
+
 
 static size_t
 incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
 {
-  mrb_heap_page *page = gc->sweeps;
+  int i;
   size_t tried_sweep = 0;
 
-  while (page && (tried_sweep < limit)) {
-    RVALUE *p = objects(page);
-    RVALUE *e = p + MRB_HEAP_PAGE_SIZE;
-    size_t freed = 0;
-    mrb_bool dead_slot = TRUE;
-    mrb_bool full = (page->freelist == NULL);
+  for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
+    size_t object_size = value_sizes[i];
+    size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
+    mrb_heap *heap = &gc->heaps[i];
+    mrb_heap_page *page = heap->sweeps;
 
-    if (is_minor_gc(gc) && page->old) {
-      /* skip a slot which doesn't contain any young object */
-      p = e;
-      dead_slot = FALSE;
-    }
-    while (p<e) {
-      if (is_dead(gc, &p->as.basic)) {
-        if (p->as.basic.tt != MRB_TT_FREE) {
-          obj_free(mrb, &p->as.basic);
-          p->as.free.next = page->freelist;
-          page->freelist = (struct RBasic*)p;
-          freed++;
+    while (page && (tried_sweep < limit)) {
+      uint8_t *p = page->objects;
+      uint8_t *e = p + objects_size;
+      size_t freed = 0;
+      mrb_bool dead_slot = TRUE;
+      mrb_bool full = (page->freelist == NULL);
+
+      if (is_minor_gc(gc) && page->old) {
+        /* skip a slot which doesn't contain any young object */
+        p = e;
+        dead_slot = FALSE;
+      }
+      while (p<e) {
+        struct RBasic *b = (struct RBasic *)p;
+
+        if (is_dead(gc, b)) {
+          if (b->tt != MRB_TT_FREE) {
+            struct free_obj *f = (struct free_obj *)p;
+            obj_free(mrb, b);
+            f->next = page->freelist;
+            page->freelist = b;
+            freed++;
+          }
         }
+        else {
+          if (!is_generational(gc))
+            paint_partial_white(gc, b); /* next gc target */
+          dead_slot = 0;
+        }
+        p += object_size;
+      }
+
+      /* free dead slot */
+      if (dead_slot && freed < MRB_HEAP_PAGE_SIZE) {
+        mrb_heap_page *next = page->next;
+
+        unlink_heap_page(heap, page);
+        unlink_free_heap_page(heap, page);
+        mrb_free(mrb, page);
+        page = next;
       }
       else {
-        if (!is_generational(gc))
-          paint_partial_white(gc, &p->as.basic); /* next gc target */
-        dead_slot = 0;
+        if (full && freed > 0) {
+          link_free_heap_page(heap, page);
+        }
+        if (page->freelist == NULL && is_minor_gc(gc))
+          page->old = TRUE;
+        else
+          page->old = FALSE;
+        page = page->next;
       }
-      p++;
+      tried_sweep += MRB_HEAP_PAGE_SIZE;
+      gc->live -= freed;
+      gc->live_after_mark -= freed;
     }
-
-    /* free dead slot */
-    if (dead_slot && freed < MRB_HEAP_PAGE_SIZE) {
-      mrb_heap_page *next = page->next;
-
-      unlink_heap_page(gc, page);
-      unlink_free_heap_page(gc, page);
-      mrb_free(mrb, page);
-      page = next;
-    }
-    else {
-      if (full && freed > 0) {
-        link_free_heap_page(gc, page);
-      }
-      if (page->freelist == NULL && is_minor_gc(gc))
-        page->old = TRUE;
-      else
-        page->old = FALSE;
-      page = page->next;
-    }
-    tried_sweep += MRB_HEAP_PAGE_SIZE;
-    gc->live -= freed;
-    gc->live_after_mark -= freed;
+    heap->sweeps = page;
   }
-  gc->sweeps = page;
   return tried_sweep;
 }
 
@@ -1407,18 +1514,22 @@ gc_generational_mode_set(mrb_state *mrb, mrb_value self)
 static void
 gc_each_objects(mrb_state *mrb, mrb_gc *gc, mrb_each_object_callback *callback, void *data)
 {
-  mrb_heap_page* page = gc->heaps;
+  int i;
+  for(i = 0; i < MRB_N_HEAP_TYPES; i++) {
+    mrb_heap_page* page = gc->heaps[i].heaps;
+    size_t object_size = value_sizes[i];
+    size_t objects_size = MRB_HEAP_PAGE_SIZE * object_size;
 
-  while (page != NULL) {
-    RVALUE *p, *pend;
+    while (page != NULL) {
+      uint8_t *p, *e;
+      p = page->objects;
+      e = p + objects_size;
+      for (;p < e; p += object_size) {
+        (*callback)(mrb, (struct RBasic *)p , data);
+      }
 
-    p = objects(page);
-    pend = p + MRB_HEAP_PAGE_SIZE;
-    for (;p < pend; p++) {
-      (*callback)(mrb, &p->as.basic, data);
+      page = page->next;
     }
-
-    page = page->next;
   }
 }
 
@@ -1699,7 +1810,7 @@ test_incremental_sweep_phase(void)
 
   puts("test_incremental_sweep_phase");
 
-  add_heap(mrb, gc);
+  add_heap_page(mrb, gc);
   gc->sweeps = gc->heaps;
 
   mrb_assert(gc->heaps->next->next == NULL);
