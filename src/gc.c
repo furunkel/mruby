@@ -369,6 +369,10 @@ add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
   uint8_t *p, *e;
   struct RBasic *prev = NULL;
 
+  if(type == MRB_HEAP_TYPE_INFREQ) {
+    page->old = TRUE;
+  }
+
   for (p = page->objects, e = p + objects_size; p < e; p += object_size) {
     struct free_obj *o = (struct free_obj *) p;
     o->tt = MRB_TT_FREE;
