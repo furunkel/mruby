@@ -79,7 +79,7 @@ MRuby::Gem::Specification.new('mruby-test') do |spec|
           f.puts %Q[  int ai;]
           g.test_rbfiles.count.times do |i|
             f.puts %Q[  ai = mrb_gc_arena_save(mrb);]
-            f.puts %Q[  mrb2 = mrb_open_core(mrb_default_allocf, NULL);]
+            f.puts %Q[  mrb2 = mrb_open_core(mrb_default_alloc_context);]
             f.puts %Q[  if (mrb2 == NULL) {]
             f.puts %Q[    fprintf(stderr, "Invalid mrb_state, exiting \%s", __FUNCTION__);]
             f.puts %Q[    exit(EXIT_FAILURE);]

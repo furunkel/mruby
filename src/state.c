@@ -25,18 +25,17 @@ inspect_main(mrb_state *mrb, mrb_value mod)
 }
 
 MRB_API mrb_state*
-mrb_open_core(mrb_allocf f, void *ud)
+mrb_open_core(mrb_alloc_context f)
 {
   static const mrb_state mrb_state_zero = { 0 };
   static const struct mrb_context mrb_context_zero = { 0 };
   mrb_state *mrb;
 
-  mrb = (mrb_state *)(f)(NULL, NULL, sizeof(mrb_state), ud);
+  mrb = (mrb_state *)(f.mem_alloc_func)(NULL, NULL, sizeof(mrb_state), f.mem_alloc_ud);
   if (mrb == NULL) return NULL;
 
   *mrb = mrb_state_zero;
-  mrb->allocf_ud = ud;
-  mrb->allocf = f;
+  mrb->alloc_cxt = f;
   mrb->atexit_stack_len = 0;
 
   mrb_gc_init(mrb, &mrb->gc);
@@ -47,18 +46,6 @@ mrb_open_core(mrb_allocf f, void *ud)
   mrb_init_core(mrb);
 
   return mrb;
-}
-
-void*
-mrb_default_allocf(mrb_state *mrb, void *p, size_t size, void *ud)
-{
-  if (size == 0) {
-    free(p);
-    return NULL;
-  }
-  else {
-    return realloc(p, size);
-  }
 }
 
 struct alloca_header {
@@ -96,15 +83,15 @@ mrb_alloca_free(mrb_state *mrb)
 MRB_API mrb_state*
 mrb_open(void)
 {
-  mrb_state *mrb = mrb_open_allocf(mrb_default_allocf, NULL);
+  mrb_state *mrb = mrb_open_alloc_context(mrb_default_alloc_context);
 
   return mrb;
 }
 
 MRB_API mrb_state*
-mrb_open_allocf(mrb_allocf f, void *ud)
+mrb_open_alloc_context(mrb_alloc_context alloc_cxt)
 {
-  mrb_state *mrb = mrb_open_core(f, ud);
+  mrb_state *mrb = mrb_open_core(alloc_cxt);
 
   if (mrb == NULL) {
     return NULL;

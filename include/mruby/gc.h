@@ -17,6 +17,28 @@ MRB_BEGIN_DECL
 
 struct mrb_state;
 
+/**
+ * Function pointer type of custom allocator used in @see mrb_open_allocf.
+ *
+ * The function pointing it must behave similarly as realloc except:
+ * - If ptr is NULL it must allocate new space.
+ * - If s is NULL, ptr must be freed.
+ *
+ * See @see mrb_default_allocf for the default implementation.
+ */
+typedef void* (*mrb_mem_alloc_func) (struct mrb_state *mrb, void*, size_t, void *ud);
+
+typedef void* (*mrb_page_alloc_func) (struct mrb_state *mrb, void*, size_t, void *ud);
+
+typedef struct {
+  mrb_mem_alloc_func mem_alloc_func;
+  mrb_page_alloc_func page_alloc_func;
+  void *mem_alloc_ud;                        /* auxiliary data of allocf */
+  void *page_alloc_ud;                       /* auxiliary data of allocf */
+} mrb_alloc_context;
+
+MRB_API const mrb_alloc_context mrb_default_alloc_context;
+
 typedef void (mrb_each_object_callback)(struct mrb_state *mrb, struct RBasic *obj, void *data);
 void mrb_objspace_each_objects(struct mrb_state *mrb, mrb_each_object_callback *callback, void *data);
 MRB_API void mrb_free_context(struct mrb_state *mrb, struct mrb_context *c);

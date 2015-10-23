@@ -228,17 +228,41 @@ gettimeofday_time(void)
 #define other_white_part(s) ((s)->current_white_part ^ GC_WHITES)
 #define is_dead(s, o) (((o)->color & other_white_part(s) & GC_WHITES) || (o)->tt == MRB_TT_FREE)
 
-#define objects(p) ((RVALUE *)p->objects)
+void*
+mrb_default_page_alloc_func(mrb_state *mrb, void *p, size_t size, void *ud)
+{
+  return NULL;
+}
+
+void*
+mrb_default_mem_alloc_func(mrb_state *mrb, void *p, size_t size, void *ud)
+{
+  if (size == 0) {
+    free(p);
+    return NULL;
+  }
+  else {
+    return realloc(p, size);
+  }
+}
+
+const mrb_alloc_context mrb_default_alloc_context = {
+  .mem_alloc_func = mrb_default_mem_alloc_func,
+  .mem_alloc_ud   = NULL,
+
+  .page_alloc_func = mrb_default_page_alloc_func,
+  .page_alloc_ud   = NULL
+};
 
 MRB_API void*
 mrb_realloc_simple(mrb_state *mrb, void *p,  size_t len)
 {
   void *p2;
 
-  p2 = (mrb->allocf)(mrb, p, len, mrb->allocf_ud);
+  p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.mem_alloc_ud);
   if (!p2 && len > 0 && mrb->gc.heaps) {
     mrb_full_gc(mrb);
-    p2 = (mrb->allocf)(mrb, p, len, mrb->allocf_ud);
+    p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.mem_alloc_ud);
   }
 
   return p2;
@@ -301,7 +325,7 @@ mrb_calloc(mrb_state *mrb, size_t nelem, size_t len)
 MRB_API void
 mrb_free(mrb_state *mrb, void *p)
 {
-  (mrb->allocf)(mrb, p, 0, mrb->allocf_ud);
+  (mrb->alloc_cxt.mem_alloc_func)(mrb, p, 0, mrb->alloc_cxt.mem_alloc_ud);
 }
 
 MRB_API mrb_bool

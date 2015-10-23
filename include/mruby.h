@@ -54,17 +54,6 @@ typedef uint32_t mrb_aspec;
 struct mrb_irep;
 struct mrb_state;
 
-/**
- * Function pointer type of custom allocator used in @see mrb_open_allocf.
- *
- * The function pointing it must behave similarly as realloc except:
- * - If ptr is NULL it must allocate new space.
- * - If s is NULL, ptr must be freed.
- *
- * See @see mrb_default_allocf for the default implementation.
- */
-typedef void* (*mrb_allocf) (struct mrb_state *mrb, void*, size_t, void *ud);
-
 #ifndef MRB_FIXED_STATE_ATEXIT_STACK_SIZE
 #define MRB_FIXED_STATE_ATEXIT_STACK_SIZE 5
 #endif
@@ -118,8 +107,7 @@ typedef void (*mrb_atexit_func)(struct mrb_state*);
 typedef struct mrb_state {
   struct mrb_jmpbuf *jmp;
 
-  mrb_allocf allocf;                      /* memory allocation function */
-  void *allocf_ud;                        /* auxiliary data of allocf */
+  mrb_alloc_context alloc_cxt;
 
   struct mrb_context *c;
   struct mrb_context *root_c;
@@ -702,7 +690,7 @@ MRB_API mrb_state* mrb_open(void);
  * @return
  *      Pointer to the newly created mrb_state.
  */
-MRB_API mrb_state* mrb_open_allocf(mrb_allocf f, void *ud);
+MRB_API mrb_state* mrb_open_alloc_context(mrb_alloc_context alloc_ctx);
 
 /**
  * Create new mrb_state with just the MRuby core
@@ -716,7 +704,7 @@ MRB_API mrb_state* mrb_open_allocf(mrb_allocf f, void *ud);
  * @return
  *      Pointer to the newly created mrb_state.
  */
-MRB_API mrb_state* mrb_open_core(mrb_allocf f, void *ud);
+MRB_API mrb_state* mrb_open_core(mrb_alloc_context alloc_ctx);
 
 /**
  * Closes and frees a mrb_state.

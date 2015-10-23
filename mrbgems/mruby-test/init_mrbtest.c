@@ -17,7 +17,7 @@ mrb_init_mrbtest(mrb_state *mrb)
 
   mrb_load_irep(mrb, mrbtest_assert_irep);
 
-  core_test = mrb_open_core(mrb_default_allocf, NULL);
+  core_test = mrb_open_core(mrb_default_alloc_context);
   if (core_test == NULL) {
     fprintf(stderr, "Invalid mrb_state, exiting %s", __FUNCTION__);
     exit(EXIT_FAILURE);
