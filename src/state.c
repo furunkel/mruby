@@ -31,7 +31,7 @@ mrb_open_core(mrb_alloc_context f)
   static const struct mrb_context mrb_context_zero = { 0 };
   mrb_state *mrb;
 
-  mrb = (mrb_state *)(f.mem_alloc_func)(NULL, NULL, sizeof(mrb_state), f.mem_alloc_ud);
+  mrb = (mrb_state *)(f.mem_alloc_func)(NULL, NULL, sizeof(mrb_state), f.ud);
   if (mrb == NULL) return NULL;
 
   *mrb = mrb_state_zero;

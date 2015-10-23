@@ -4,6 +4,16 @@
 ** See Copyright Notice in mruby.h
 */
 
+#define _DEFAULT_SOURCE // MAP_ANONYMOUS
+
+#if defined(_WIN32)
+#  include <windows.h>
+#elif (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
+#  include <sys/mman.h>
+#  define HAVE_MMAP
+#endif
+
+
 #include <string.h>
 #include <stdlib.h>
 #include "mruby.h"
@@ -231,7 +241,25 @@ gettimeofday_time(void)
 void*
 mrb_default_page_alloc_func(mrb_state *mrb, void *p, size_t size, void *ud)
 {
-  return NULL;
+#if defined(_WIN32)
+    return VirtualAlloc(p, size, MEM_COMMIT, PAGE_READWRITE);
+#elif defined(HAVE_MMAP)
+    return mmap(p, size, PROT_READ | PROT_WRITE, MAP_ANONYMOUS | MAP_PRIVATE, -1, 0);
+#else
+#error Unknown operating system. Please provide your own allocation context.
+#endif
+}
+
+int
+mrb_default_page_free_func(mrb_state *mrb, void *p, size_t size, void *ud)
+{
+#if defined(_WIN32)
+    return VirtualFree(p, size, MEM_DECOMMIT);
+#elif defined(HAVE_MMAP)
+    return munmap(p, size);
+#else
+#error Unknown operating system. Please provide your own allocation context.
+#endif
 }
 
 void*
@@ -248,10 +276,9 @@ mrb_default_mem_alloc_func(mrb_state *mrb, void *p, size_t size, void *ud)
 
 const mrb_alloc_context mrb_default_alloc_context = {
   .mem_alloc_func = mrb_default_mem_alloc_func,
-  .mem_alloc_ud   = NULL,
-
   .page_alloc_func = mrb_default_page_alloc_func,
-  .page_alloc_ud   = NULL
+  .page_free_func = mrb_default_page_free_func,
+  .ud   = NULL,
 };
 
 MRB_API void*
@@ -259,10 +286,10 @@ mrb_realloc_simple(mrb_state *mrb, void *p,  size_t len)
 {
   void *p2;
 
-  p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.mem_alloc_ud);
+  p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.ud);
   if (!p2 && len > 0 && mrb->gc.heaps) {
     mrb_full_gc(mrb);
-    p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.mem_alloc_ud);
+    p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.ud);
   }
 
   return p2;
@@ -325,7 +352,7 @@ mrb_calloc(mrb_state *mrb, size_t nelem, size_t len)
 MRB_API void
 mrb_free(mrb_state *mrb, void *p)
 {
-  (mrb->alloc_cxt.mem_alloc_func)(mrb, p, 0, mrb->alloc_cxt.mem_alloc_ud);
+  (mrb->alloc_cxt.mem_alloc_func)(mrb, p, 0, mrb->alloc_cxt.ud);
 }
 
 MRB_API mrb_bool

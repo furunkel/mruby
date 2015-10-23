@@ -29,12 +29,13 @@ struct mrb_state;
 typedef void* (*mrb_mem_alloc_func) (struct mrb_state *mrb, void*, size_t, void *ud);
 
 typedef void* (*mrb_page_alloc_func) (struct mrb_state *mrb, void*, size_t, void *ud);
+typedef int (*mrb_page_free_func) (struct mrb_state *mrb, void*, size_t, void *ud);
 
 typedef struct {
   mrb_mem_alloc_func mem_alloc_func;
   mrb_page_alloc_func page_alloc_func;
-  void *mem_alloc_ud;                        /* auxiliary data of allocf */
-  void *page_alloc_ud;                       /* auxiliary data of allocf */
+  mrb_page_free_func page_free_func;
+  void *ud;                       /* auxiliary data of allocf */
 } mrb_alloc_context;
 
 MRB_API const mrb_alloc_context mrb_default_alloc_context;
