@@ -10,14 +10,14 @@ struct os_count_struct {
 };
 
 static void
-os_count_object_type(mrb_state *mrb, struct RBasic *obj, void *data)
+os_count_object_type(mrb_state *mrb, struct RBasic *obj, mrb_objspace_flags flags, void *data)
 {
   struct os_count_struct *obj_count;
   obj_count = (struct os_count_struct*)data;
 
   obj_count->total++;
 
-  if (mrb_object_dead_p(mrb, obj)) {
+  if (flags & MRB_OBJSPACE_FLAG_DEAD) {
     obj_count->freed++;
   }
   else {
@@ -110,12 +110,12 @@ struct os_each_object_data {
 };
 
 static void
-os_each_object_cb(mrb_state *mrb, struct RBasic *obj, void *ud)
+os_each_object_cb(mrb_state *mrb, struct RBasic *obj, mrb_objspace_flags flags, void *ud)
 {
   struct os_each_object_data *d = (struct os_each_object_data*)ud;
 
   /* filter dead objects */
-  if (mrb_object_dead_p(mrb, obj)) {
+  if (flags & MRB_OBJSPACE_FLAG_DEAD) {
     return;
   }
 

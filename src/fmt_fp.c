@@ -41,9 +41,6 @@ struct fmt_args {
   mrb_value str;
 };
 
-#define MAX(a,b) ((a)>(b) ? (a) : (b))
-#define MIN(a,b) ((a)<(b) ? (a) : (b))
-
 /* Convenient bit representation for modifier flags, which all fall
  * within 31 codepoints of the space character. */
 
@@ -119,7 +116,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
     out(f, prefix, pl);
     out(f, ss, 3);
     pad(f, ' ', w, 3+pl, fl^LEFT_ADJ);
-    return MAX(w, 3+pl);
+    return MRB_MAX(w, 3+pl);
   }
 
   y = frexp((double)y, &e2) * 2;
@@ -174,7 +171,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
     pad(f, '0', l-(ebuf-estr)-(s-buf), 0, 0);
     out(f, estr, ebuf-estr);
     pad(f, ' ', w, pl+l, fl^LEFT_ADJ);
-    return MAX(w, pl+l);
+    return MRB_MAX(w, pl+l);
   }
   if (p<0) p=6;
 
@@ -190,7 +187,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
 
   while (e2>0) {
     uint32_t carry=0;
-    int sh=MIN(29,e2);
+    int sh=MRB_MIN(29,e2);
     for (d=z-1; d>=a; d--) {
       uint64_t x = ((uint64_t)*d<<sh)+carry;
       *d = x % 1000000000;
@@ -202,7 +199,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
   }
   while (e2<0) {
     uint32_t carry=0, *b;
-    int sh=MIN(9,-e2), need=1+(p+LDBL_MANT_DIG/3+8)/9;
+    int sh=MRB_MIN(9,-e2), need=1+(p+LDBL_MANT_DIG/3+8)/9;
     for (d=a; d<z; d++) {
       uint32_t rm = *d & ((1<<sh)-1);
       *d = (*d>>sh) + carry;
@@ -269,9 +266,9 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
       if (z>a && z[-1]) for (i=10, j=0; z[-1]%i==0; i*=10, j++);
       else j=9;
       if ((t|32)=='f')
-        p = MIN(p,MAX(0,9*(z-r-1)-j));
+        p = MRB_MIN(p,MRB_MAX(0,9*(z-r-1)-j));
       else
-        p = MIN(p,MAX(0,9*(z-r-1)+e-j));
+        p = MRB_MIN(p,MRB_MAX(0,9*(z-r-1)+e-j));
     }
   }
   l = 1 + p + (p || (fl&ALT_FORM));
@@ -302,7 +299,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
     for (; d<z && p>0; d++, p-=9) {
       char *ss = fmt_u(*d, buf+9);
       while (ss>buf) *--ss='0';
-      out(f, ss, MIN(9,p));
+      out(f, ss, MRB_MIN(9,p));
     }
     pad(f, '0', p+9, 9, 0);
   }
@@ -316,7 +313,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
         out(f, ss++, 1);
         if (p>0||(fl&ALT_FORM)) out(f, ".", 1);
       }
-      out(f, ss, MIN(buf+9-ss, p));
+      out(f, ss, MRB_MIN(buf+9-ss, p));
       p -= buf+9-ss;
     }
     pad(f, '0', p+18, 18, 0);
@@ -325,7 +322,7 @@ fmt_fp(struct fmt_args *f, long double y, int w, int p, int fl, int t)
 
   pad(f, ' ', w, pl+l, fl^LEFT_ADJ);
 
-  return MAX(w, pl+l);
+  return MRB_MAX(w, pl+l);
 }
 
 static int

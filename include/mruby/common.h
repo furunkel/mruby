@@ -50,6 +50,10 @@ MRB_BEGIN_DECL
 # define MRB_INLINE static inline
 #endif
 
+#define MRB_MIN(a,b) (((a)<(b))?(a):(b))
+#define MRB_MAX(a,b) (((a)>(b))?(a):(b))
+#define MRB_ALIGN_DOWN(v, a) ((v) & ~((a) - 1))
+#define MRB_ALIGN_UP(v, a) MRB_ALIGN_DOWN((v) + ((a) - 1), a)
 
 /** Declare a public MRuby API function. */
 #if defined(MRB_BUILD_AS_DLL)

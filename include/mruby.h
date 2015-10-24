@@ -739,21 +739,6 @@ MRB_API mrb_value mrb_Float(mrb_state *mrb, mrb_value val);
 MRB_API mrb_value mrb_inspect(mrb_state *mrb, mrb_value obj);
 MRB_API mrb_bool mrb_eql(mrb_state *mrb, mrb_value obj1, mrb_value obj2);
 
-MRB_API void mrb_garbage_collect(mrb_state*);
-MRB_API void mrb_full_gc(mrb_state*);
-MRB_API void mrb_incremental_gc(mrb_state *);
-MRB_API int mrb_gc_arena_save(mrb_state*);
-MRB_API void mrb_gc_arena_restore(mrb_state*,int);
-MRB_API void mrb_gc_mark(mrb_state*,struct RBasic*);
-#define mrb_gc_mark_value(mrb,val) do {\
-  if (!mrb_immediate_p(val)) mrb_gc_mark((mrb), mrb_basic_ptr(val)); \
-} while (0)
-MRB_API void mrb_field_write_barrier(mrb_state *, struct RBasic*, struct RBasic*);
-#define mrb_field_write_barrier_value(mrb, obj, val) do{\
-  if (!mrb_immediate_p(val)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val)); \
-} while (0)
-MRB_API void mrb_write_barrier(mrb_state *, struct RBasic*);
-
 MRB_API mrb_value mrb_check_convert_type(mrb_state *mrb, mrb_value val, enum mrb_vtype type, const char *tname, const char *method);
 MRB_API mrb_value mrb_any_to_s(mrb_state *mrb, mrb_value obj);
 MRB_API const char * mrb_obj_classname(mrb_state *mrb, mrb_value obj);

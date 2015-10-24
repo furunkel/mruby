@@ -40,9 +40,10 @@ typedef struct {
 
 MRB_API const mrb_alloc_context mrb_default_alloc_context;
 
-typedef void (mrb_each_object_callback)(struct mrb_state *mrb, struct RBasic *obj, void *data);
-void mrb_objspace_each_objects(struct mrb_state *mrb, mrb_each_object_callback *callback, void *data);
-MRB_API void mrb_free_context(struct mrb_state *mrb, struct mrb_context *c);
+typedef enum {
+  MRB_OBJSPACE_FLAG_DEAD = 1 << 0
+} mrb_objspace_flags;
+
 
 #ifndef MRB_GC_ARENA_SIZE
 #define MRB_GC_ARENA_SIZE 100
@@ -61,14 +62,25 @@ typedef enum mrb_heap_type {
   MRB_N_HEAP_TYPES
 } mrb_heap_type;
 
+struct mrb_object_header {
+  union {
+    struct {
+      enum mrb_vtype tt :  5;
+      uint64_t next;
+      uint8_t   color   : 3;
+      uint64_t  gcnext;
+    };
+  };
+};
+
 typedef struct mrb_heap_page {
-  struct RBasic *freelist;
+  struct mrb_object_header *freelist;
   struct mrb_heap_page *prev;
   struct mrb_heap_page *next;
   struct mrb_heap_page *free_next;
   struct mrb_heap_page *free_prev;
-  mrb_bool old:1;
-  uint8_t objects[];
+  mrb_bool old : 1;
+  struct mrb_object_header headers[]; /* object headers */
 } mrb_heap_page;
 
 typedef struct mrb_heap {
@@ -90,8 +102,8 @@ typedef struct mrb_gc {
 
   mrb_gc_state state; /* state of gc */
   int current_white_part; /* make white object by white_part */
-  struct RBasic *gray_list; /* list of gray objects to be traversed incrementally */
-  struct RBasic *atomic_gray_list; /* list of objects to be traversed atomically */
+  struct mrb_object_header *gray_list; /* list of gray objects to be traversed incrementally */
+  void *atomic_gray_list; /* list of objects to be traversed atomically */
   size_t live_after_mark;
   size_t threshold;
   int interval_ratio;
@@ -103,8 +115,26 @@ typedef struct mrb_gc {
   size_t majorgc_old_threshold;
 } mrb_gc;
 
-MRB_API mrb_bool
-mrb_object_dead_p(struct mrb_state *mrb, struct RBasic *object);
+
+typedef void (mrb_each_object_callback)(struct mrb_state *mrb, struct RBasic *obj, mrb_objspace_flags flags, void *data);
+void mrb_objspace_each_objects(struct mrb_state *mrb, mrb_each_object_callback *callback, void *data);
+MRB_API void mrb_free_context(struct mrb_state *mrb, struct mrb_context *c);
+MRB_API void mrb_garbage_collect(struct mrb_state*);
+MRB_API void mrb_full_gc(struct mrb_state*);
+MRB_API void mrb_incremental_gc(struct mrb_state *);
+MRB_API int mrb_gc_arena_save(struct mrb_state*);
+MRB_API void mrb_gc_arena_restore(struct mrb_state*,int);
+MRB_API void mrb_gc_mark(struct mrb_state*,struct RBasic*);
+
+#define mrb_gc_mark_value(mrb,val) do {\
+  if (!mrb_immediate_p(val)) mrb_gc_mark((mrb), mrb_basic_ptr(val)); \
+} while (0)
+
+MRB_API void mrb_field_write_barrier(struct mrb_state *, struct RBasic*, struct RBasic*);
+#define mrb_field_write_barrier_value(mrb, obj, val) do{\
+  if (!mrb_immediate_p(val)) mrb_field_write_barrier((mrb), (obj), mrb_basic_ptr(val)); \
+} while (0)
+MRB_API void mrb_write_barrier(struct mrb_state *, struct RBasic*);
 
 MRB_END_DECL
 
