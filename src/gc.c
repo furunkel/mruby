@@ -238,12 +238,11 @@ gettimeofday_time(void)
 #define other_white_part(s) ((s)->current_white_part ^ GC_WHITES)
 #define is_dead(s, o) (((o)->color & other_white_part(s) & GC_WHITES) || (o)->tt == MRB_TT_FREE)
 #define objects(p) (((uint8_t *)(p)) + _page_size)
-//#define set_gcnext(h, p) ((h)->gcnext = (uintptr_t)(p))
-//#define get_gcnext(h) ((struct mrb_object_header *)((uintptr_t)(h)->gcnext))
+#define set_gcnext(h, p) ((h)->gcnext = (uintptr_t)(p))
+#define get_gcnext(h) ((struct mrb_object_header *)((uintptr_t)(h)->gcnext))
 
-
-#define set_gcnext(h, p) ((h)->gcnext = (p))
-#define get_gcnext(h) ((h)->gcnext)
+#define set_next(h, p) ((h)->next = (uintptr_t)(p))
+#define get_next(h) ((struct mrb_object_header *)((uintptr_t)(h)->next))
 
 void*
 mrb_default_page_alloc_func(mrb_state *mrb, void *p, size_t size, void *ud)
@@ -561,7 +560,7 @@ add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
 
   EACH_OBJECT_HEADER_BEGIN(page, n_objs)
     p->tt = MRB_TT_FREE;
-    p->next = prev;
+    set_next(p, prev);
     prev = p;
   EACH_OBJECT_HEADER_END()
 
@@ -764,7 +763,7 @@ mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
   }
 
   obj_header = heap->free_heaps->freelist;
-  heap->free_heaps->freelist = obj_header->next;
+  heap->free_heaps->freelist = get_next(obj_header);
   if (heap->free_heaps->freelist == NULL) {
     unlink_free_heap_page(heap, heap->free_heaps);
   }
@@ -782,10 +781,6 @@ mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
   p->c = cls;
   paint_partial_white(gc, obj_header);
 
-  if(find_header_by_obj(p) != obj_header) {
-    fprintf(stderr, "page_index:%d\n", p->page_index);
-    fprintf(stderr, "diff:%d\n", (uint8_t *)find_header_by_obj(p) - (uint8_t *)obj_header);
-  }
   mrb_assert(find_header_by_obj(p) == obj_header);
   return p;
 }
@@ -1271,7 +1266,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
         if (is_dead(gc, p)) {
           if (p->tt != MRB_TT_FREE) {
             obj_free_by_header(mrb, p);
-            p->next = page->freelist;
+            set_next(p, page->freelist);
             page->freelist = p;
             freed++;
           }
