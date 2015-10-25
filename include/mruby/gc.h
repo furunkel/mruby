@@ -62,7 +62,7 @@ typedef enum mrb_heap_type {
   MRB_N_HEAP_TYPES
 } mrb_heap_type;
 
-struct mrb_object_header {
+struct mrb_gc_objhdr {
   union {
     struct {
       enum mrb_vtype tt :  5;
@@ -79,13 +79,13 @@ struct mrb_object_header {
 };
 
 typedef struct mrb_heap_page {
-  struct mrb_object_header *freelist;
+  struct mrb_gc_objhdr *freelist;
   struct mrb_heap_page *prev;
   struct mrb_heap_page *next;
   struct mrb_heap_page *free_next;
   struct mrb_heap_page *free_prev;
   mrb_bool old : 1;
-  struct mrb_object_header headers[]; /* object headers */
+  struct mrb_gc_objhdr headers[]; /* object headers */
 } mrb_heap_page;
 
 typedef struct mrb_heap {
@@ -107,8 +107,8 @@ typedef struct mrb_gc {
 
   mrb_gc_state state; /* state of gc */
   int current_white_part; /* make white object by white_part */
-  struct mrb_object_header *gray_list; /* list of gray objects to be traversed incrementally */
-  struct mrb_object_header *atomic_gray_list; /* list of objects to be traversed atomically */
+  struct mrb_gc_objhdr *gray_list; /* list of gray objects to be traversed incrementally */
+  struct mrb_gc_objhdr *atomic_gray_list; /* list of objects to be traversed atomically */
   size_t live_after_mark;
   size_t threshold;
   int interval_ratio;

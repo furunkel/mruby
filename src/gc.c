@@ -239,10 +239,10 @@ gettimeofday_time(void)
 #define is_dead(s, o) (((o)->color & other_white_part(s) & GC_WHITES) || (o)->tt == MRB_TT_FREE)
 #define objects(p) (((uint8_t *)(p)) + _page_size)
 #define set_gcnext(h, p) ((h)->gcnext = (uintptr_t)(p))
-#define get_gcnext(h) ((struct mrb_object_header *)((uintptr_t)(h)->gcnext))
+#define get_gcnext(h) ((struct mrb_gc_objhdr *)((uintptr_t)(h)->gcnext))
 
 #define set_next(h, p) ((h)->next = (uintptr_t)(p))
-#define get_next(h) ((struct mrb_object_header *)((uintptr_t)(h)->next))
+#define get_next(h) ((struct mrb_gc_objhdr *)((uintptr_t)(h)->next))
 
 void*
 mrb_default_page_alloc_func(mrb_state *mrb, void *p, size_t size, void *ud)
@@ -499,7 +499,7 @@ n_objs_per_heap_page(mrb_heap_type htype)
 {
   return MRB_MIN(
       MRB_MAX(max_objs_per_heap_page(htype), n_objs_per_page(htype)),
-      (_page_size - sizeof(mrb_heap_page)) / sizeof(struct mrb_object_header)
+      (_page_size - sizeof(mrb_heap_page)) / sizeof(struct mrb_gc_objhdr)
   );
 }
 
@@ -510,19 +510,19 @@ n_obj_pages(mrb_heap_type htype)
 }
 
 static inline struct RBasic *
-find_obj_by_header(struct mrb_object_header *header) 
+find_obj_by_header(struct mrb_gc_objhdr *header) 
 {
   mrb_heap_type htype = heap_type_for_vtype(header->tt); 
   uintptr_t header_addr = (uintptr_t) header;
   uintptr_t page_addr = MRB_ALIGN_DOWN(header_addr, _page_size);
-  unsigned index = (header_addr - (page_addr + sizeof(mrb_heap_page))) / sizeof(struct mrb_object_header);
+  unsigned index = (header_addr - (page_addr + sizeof(mrb_heap_page))) / sizeof(struct mrb_gc_objhdr);
   unsigned n_objs = n_objs_per_page(htype);
   unsigned page_index = index / n_objs;
   unsigned obj_index = index % n_objs;
   return (struct RBasic *)((page_addr + (page_index + 1) * _page_size) + obj_index * value_sizes[(unsigned) htype]);
 }
 
-static inline struct mrb_object_header *
+static inline struct mrb_gc_objhdr *
 find_header_by_obj(struct RBasic *obj) 
 {
   mrb_heap_type htype = heap_type_for_vtype(obj->tt);
@@ -533,18 +533,18 @@ find_header_by_obj(struct RBasic *obj)
   unsigned index = base_index + (obj_addr - page_addr) / object_size;
   uintptr_t header_page_addr = (page_addr - ((obj->page_index + 1) * _page_size));
 
-  return (struct mrb_object_header *)(header_page_addr + sizeof(mrb_heap_page) +
-                                      index * sizeof(struct mrb_object_header));
+  return (struct mrb_gc_objhdr *)(header_page_addr + sizeof(mrb_heap_page) +
+                                      index * sizeof(struct mrb_gc_objhdr));
 
 }
 
-#define EACH_OBJECT_HEADER_BEGIN(page, n_objs) \
+#define EACH_GC_OBJHDR_BEGIN(page, n_objs) \
   do { \
-    struct mrb_object_header *p = (page)->headers;\
-    struct mrb_object_header *e = p + (n_objs);\
+    struct mrb_gc_objhdr *p = (page)->headers;\
+    struct mrb_gc_objhdr *e = p + (n_objs);\
     for (;p < e; p++) {
 
-#define EACH_OBJECT_HEADER_END() }} while(0);
+#define EACH_GC_OBJHDR_END() }} while(0);
 
 static void
 add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
@@ -552,17 +552,17 @@ add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
   unsigned n_objs = n_objs_per_heap_page(type);
   unsigned n_pages = n_obj_pages(type);
   mrb_heap_page *page = (mrb_heap_page *)mrb_alloc_page(mrb, NULL, (n_pages + 1) * _page_size);
-  struct mrb_object_header *prev = NULL;
+  struct mrb_gc_objhdr *prev = NULL;
 
   if(type == MRB_HEAP_TYPE_INFREQ) {
     page->old = TRUE;
   }
 
-  EACH_OBJECT_HEADER_BEGIN(page, n_objs)
+  EACH_GC_OBJHDR_BEGIN(page, n_objs)
     p->tt = MRB_TT_FREE;
     set_next(p, prev);
     prev = p;
-  EACH_OBJECT_HEADER_END()
+  EACH_GC_OBJHDR_END()
 
 
   page->freelist = prev;
@@ -616,9 +616,9 @@ mrb_gc_init(mrb_state *mrb, mrb_gc *gc)
 #endif
 }
 
-static void obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_object_header *header);
+static void obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_gc_objhdr *header);
 
-static void obj_free_by_header(mrb_state *mrb, struct mrb_object_header *header)
+static void obj_free_by_header(mrb_state *mrb, struct mrb_gc_objhdr *header)
 {
   struct RBasic *obj = find_obj_by_header(header);
   obj_free(mrb, obj, header);
@@ -636,11 +636,11 @@ free_heap(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
     tmp = page;
     page = page->next;
 
-    EACH_OBJECT_HEADER_BEGIN(tmp, n_objs)
+    EACH_GC_OBJHDR_BEGIN(tmp, n_objs)
       if (p->tt != MRB_TT_FREE) {
         obj_free_by_header(mrb, p);
       }
-    EACH_OBJECT_HEADER_END()
+    EACH_GC_OBJHDR_END()
 
     mrb_free_page(mrb, (void *) tmp, (n_pages + 1) * _page_size);
   }
@@ -747,9 +747,9 @@ mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
   mrb_heap_type htype = heap_type_for_vtype(ttype);
   mrb_heap *heap = &gc->heaps[htype];
   size_t object_size = value_sizes[htype];
-  struct mrb_object_header *obj_header;
+  struct mrb_gc_objhdr *obj_header;
 
-  static struct mrb_object_header obj_header_zero = {0};
+  static struct mrb_gc_objhdr obj_header_zero = {0};
 
 #ifdef MRB_GC_STRESS
   mrb_full_gc(mrb);
@@ -786,7 +786,7 @@ mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
 }
 
 static inline void
-add_gray_list(mrb_state *mrb, mrb_gc *gc, struct mrb_object_header *obj_header)
+add_gray_list(mrb_state *mrb, mrb_gc *gc, struct mrb_gc_objhdr *obj_header)
 {
 #ifdef MRB_GC_STRESS
   if (obj_header->tt > MRB_TT_MAXDEFINE) {
@@ -852,7 +852,7 @@ mark_context(mrb_state *mrb, struct mrb_context *c)
 }
 
 static void
-gc_mark_children(mrb_state *mrb, mrb_gc *gc, struct RBasic *obj, struct mrb_object_header *header)
+gc_mark_children(mrb_state *mrb, mrb_gc *gc, struct RBasic *obj, struct mrb_gc_objhdr *header)
 {
   mrb_assert(is_gray(header));
   paint_black(header);
@@ -958,7 +958,7 @@ mrb_gc_mark(mrb_state *mrb, struct RBasic *obj)
   if (obj == 0) return;
 
   {
-    struct mrb_object_header *header = find_header_by_obj(obj);
+    struct mrb_gc_objhdr *header = find_header_by_obj(obj);
     if (!is_white(header)) return;
     mrb_assert(header->tt != MRB_TT_FREE);
     add_gray_list(mrb, &mrb->gc, header);
@@ -966,7 +966,7 @@ mrb_gc_mark(mrb_state *mrb, struct RBasic *obj)
 }
 
 static void
-obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_object_header *header)
+obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_gc_objhdr *header)
 {
   DEBUG(printf("obj_free(%p,tt=%d)\n",obj,obj->tt));
   switch (obj->tt) {
@@ -1100,7 +1100,7 @@ root_scan_phase(mrb_state *mrb, mrb_gc *gc)
 }
 
 static size_t
-gc_gray_mark(mrb_state *mrb, mrb_gc *gc, struct mrb_object_header *header)
+gc_gray_mark(mrb_state *mrb, mrb_gc *gc, struct mrb_gc_objhdr *header)
 {
   struct RBasic *obj = find_obj_by_header(header);
   size_t children = 0;
@@ -1186,7 +1186,7 @@ gc_gray_mark(mrb_state *mrb, mrb_gc *gc, struct mrb_object_header *header)
 static void
 gc_mark_gray_list(mrb_state *mrb, mrb_gc *gc) {
   while (gc->gray_list) {
-    struct mrb_object_header *header = gc->gray_list;
+    struct mrb_gc_objhdr *header = gc->gray_list;
     if (is_gray(header)) {
       struct RBasic *obj = find_obj_by_header(header);
       gc_mark_children(mrb, gc, obj, header);
@@ -1262,7 +1262,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
         dead_slot = FALSE;
       }
 
-      EACH_OBJECT_HEADER_BEGIN(page, sweep_n_objs)
+      EACH_GC_OBJHDR_BEGIN(page, sweep_n_objs)
         if (is_dead(gc, p)) {
           if (p->tt != MRB_TT_FREE) {
             obj_free_by_header(mrb, p);
@@ -1277,7 +1277,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
           }
           dead_slot = FALSE;
         }
-      EACH_OBJECT_HEADER_END()
+      EACH_GC_OBJHDR_END()
 
       /* free dead slot */
       if (dead_slot && freed < n_objs) {
@@ -1497,8 +1497,8 @@ MRB_API void
 mrb_field_write_barrier(mrb_state *mrb, struct RBasic *obj, struct RBasic *value)
 {
   mrb_gc *gc = &mrb->gc;
-  struct mrb_object_header *obj_header = find_header_by_obj(obj);
-  struct mrb_object_header *value_header = find_header_by_obj(value);
+  struct mrb_gc_objhdr *obj_header = find_header_by_obj(obj);
+  struct mrb_gc_objhdr *value_header = find_header_by_obj(value);
 
   if (!is_black(obj_header)) return;
   if (!is_white(value_header)) return;
@@ -1528,7 +1528,7 @@ MRB_API void
 mrb_write_barrier(mrb_state *mrb, struct RBasic *obj)
 {
   mrb_gc *gc = &mrb->gc;
-  struct mrb_object_header *header = find_header_by_obj(obj);
+  struct mrb_gc_objhdr *header = find_header_by_obj(obj);
 
   if (!is_black(header)) return;
 
@@ -1726,11 +1726,11 @@ gc_each_objects(mrb_state *mrb, mrb_gc *gc, mrb_each_object_callback *callback, 
     unsigned n_objs = n_objs_per_heap_page(htype);
 
     while (page != NULL) {
-      EACH_OBJECT_HEADER_BEGIN(page, n_objs)
+      EACH_GC_OBJHDR_BEGIN(page, n_objs)
         mrb_objspace_flags flags = (mrb_objspace_flags) 0;
         flags |= (is_dead(gc, p) & MRB_OBJSPACE_FLAG_DEAD);
         (*callback)(mrb, find_obj_by_header(p), flags, data);
-      EACH_OBJECT_HEADER_END()
+      EACH_GC_OBJHDR_END()
 
       page = page->next;
     }
