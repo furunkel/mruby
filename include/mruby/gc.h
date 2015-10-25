@@ -66,9 +66,14 @@ struct mrb_object_header {
   union {
     struct {
       enum mrb_vtype tt :  5;
-      uint64_t next;
       uint8_t   color   : 3;
-      uint64_t  gcnext;
+      uint64_t next : 56;
+    };
+
+    struct {
+      enum mrb_vtype tt_ :  5;
+      uint8_t   color_   : 3;
+      uint64_t gcnext : 56;
     };
   };
 };
@@ -103,7 +108,7 @@ typedef struct mrb_gc {
   mrb_gc_state state; /* state of gc */
   int current_white_part; /* make white object by white_part */
   struct mrb_object_header *gray_list; /* list of gray objects to be traversed incrementally */
-  void *atomic_gray_list; /* list of objects to be traversed atomically */
+  struct mrb_object_header *atomic_gray_list; /* list of objects to be traversed atomically */
   size_t live_after_mark;
   size_t threshold;
   int interval_ratio;
