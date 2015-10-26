@@ -234,6 +234,12 @@ mrb_range_include(mrb_state *mrb, mrb_value range)
   return mrb_bool_value(include_p);
 }
 
+void
+mrb_gc_free_range(mrb_state *mrb, struct RRange *range)
+{
+  mrb_free(mrb, range->edges);
+}
+
 static mrb_bool
 range_beg_len(mrb_state *mrb, mrb_value range, mrb_int *begp, mrb_int *lenp, mrb_int len, mrb_bool trunc)
 {

@@ -44,7 +44,7 @@ iv_new(mrb_state *mrb)
 {
   iv_tbl *t;
 
-  t = mrb_malloc(mrb, sizeof(iv_tbl));
+  t = mrb_gc_malloc(mrb, sizeof(iv_tbl));
   t->size = 0;
   t->rootseg =  NULL;
   t->last_len = 0;
@@ -102,7 +102,7 @@ iv_put(mrb_state *mrb, iv_tbl *t, mrb_sym sym, mrb_value val)
     return;
   }
 
-  seg = mrb_malloc(mrb, sizeof(segment));
+  seg = mrb_gc_malloc(mrb, sizeof(segment));
   if (!seg) return;
   seg->next = NULL;
   seg->key[0] = sym;
@@ -275,9 +275,9 @@ iv_free(mrb_state *mrb, iv_tbl *t)
   while (seg) {
     segment *p = seg;
     seg = seg->next;
-    mrb_free(mrb, p);
+    mrb_gc_free(mrb, p);
   }
-  mrb_free(mrb, t);
+  mrb_gc_free(mrb, t);
 }
 
 #else
@@ -289,7 +289,7 @@ iv_free(mrb_state *mrb, iv_tbl *t)
 #endif
 
 KHASH_DECLARE(iv, mrb_sym, mrb_value, TRUE)
-KHASH_DEFINE(iv, mrb_sym, mrb_value, TRUE, kh_int_hash_func, kh_int_hash_equal)
+KHASH_DEFINE_GC(iv, mrb_sym, mrb_value, TRUE, kh_int_hash_func, kh_int_hash_equal)
 
 typedef struct iv_tbl {
   khash_t(iv) h;

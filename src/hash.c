@@ -97,7 +97,7 @@ typedef struct {
 } mrb_hash_value;
 
 KHASH_DECLARE(ht, mrb_value, mrb_hash_value, TRUE)
-KHASH_DEFINE (ht, mrb_value, mrb_hash_value, TRUE, mrb_hash_ht_hash_func, mrb_hash_ht_hash_equal)
+KHASH_DEFINE_GC(ht, mrb_value, mrb_hash_value, TRUE, mrb_hash_ht_hash_func, mrb_hash_ht_hash_equal)
 
 static void mrb_hash_modify(mrb_state *mrb, mrb_value hash);
 

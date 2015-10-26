@@ -40,7 +40,7 @@ ary_new_capa(mrb_state *mrb, mrb_int capa)
   }
 
   a = (struct RArray*)mrb_obj_alloc(mrb, MRB_TT_ARRAY, mrb->array_class);
-  a->ptr = (mrb_value *)mrb_malloc(mrb, blen);
+  a->ptr = (mrb_value *)mrb_gc_malloc(mrb, blen);
   a->aux.capa = capa;
   a->len = 0;
 
@@ -126,7 +126,7 @@ ary_modify(mrb_state *mrb, struct RArray *a)
     if (shared->refcnt == 1 && a->ptr == shared->ptr) {
       a->ptr = shared->ptr;
       a->aux.capa = a->len;
-      mrb_free(mrb, shared);
+      mrb_gc_free(mrb, shared);
     }
     else {
       mrb_value *ptr, *p;
@@ -134,7 +134,7 @@ ary_modify(mrb_state *mrb, struct RArray *a)
 
       p = a->ptr;
       len = a->len * sizeof(mrb_value);
-      ptr = (mrb_value *)mrb_malloc(mrb, len);
+      ptr = (mrb_value *)mrb_gc_malloc(mrb, len);
       if (p) {
         array_copy(ptr, p, a->len);
       }
@@ -625,10 +625,22 @@ mrb_ary_decref(mrb_state *mrb, mrb_shared_array *shared)
 {
   shared->refcnt--;
   if (shared->refcnt == 0) {
-    mrb_free(mrb, shared->ptr);
-    mrb_free(mrb, shared);
+    mrb_gc_free(mrb, shared->ptr);
+    mrb_gc_free(mrb, shared);
   }
 }
+
+void
+mrb_gc_free_ary(mrb_state *mrb, struct RArray *ary)
+{
+  if (ARY_SHARED_P(ary)) {
+    mrb_ary_decref(mrb, ary->aux.shared);
+  }
+  else {
+    mrb_gc_free(mrb, ary->ptr);
+  }
+}
+
 
 static mrb_value
 ary_subseq(mrb_state *mrb, struct RArray *a, mrb_int beg, mrb_int len)
@@ -920,7 +932,7 @@ mrb_ary_clear(mrb_state *mrb, mrb_value self)
     ARY_UNSET_SHARED_FLAG(a);
   }
   else {
-    mrb_free(mrb, a->ptr);
+    mrb_gc_free(mrb, a->ptr);
   }
   a->len = 0;
   a->aux.capa = 0;

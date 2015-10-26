@@ -85,6 +85,14 @@ kh_fill_flags(uint8_t *p, uint8_t c, size_t len)
   }
 }
 
+
+#define KHASH_DEFINE(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal) \
+  KHASH_DEFINE_FULL(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal, mrb_malloc, mrb_calloc, mrb_free)
+
+
+#define KHASH_DEFINE_GC(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal) \
+  KHASH_DEFINE_FULL(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal, mrb_gc_malloc, mrb_gc_calloc, mrb_gc_free)
+
 /* define kh_xxx_funcs
 
    name: hash name
@@ -94,12 +102,12 @@ kh_fill_flags(uint8_t *p, uint8_t c, size_t len)
    __hash_func: hash function
    __hash_equal: hash comparation function
 */
-#define KHASH_DEFINE(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal) \
+#define KHASH_DEFINE_FULL(name, khkey_t, khval_t, kh_is_map, __hash_func, __hash_equal, __malloc_func, __calloc_func, __free_func) \
   void kh_alloc_##name(mrb_state *mrb, kh_##name##_t *h)                \
   {                                                                     \
     khint_t sz = h->n_buckets;                                          \
     size_t len = sizeof(khkey_t) + (kh_is_map ? sizeof(khval_t) : 0);   \
-    uint8_t *p = (uint8_t*)mrb_malloc(mrb, sizeof(uint8_t)*sz/4+len*sz); \
+    uint8_t *p = (uint8_t*)__malloc_func(mrb, sizeof(uint8_t)*sz/4+len*sz); \
     h->size = h->n_occupied = 0;                                        \
     h->keys = (khkey_t *)p;                                             \
     h->vals = kh_is_map ? (khval_t *)(p+sizeof(khkey_t)*sz) : NULL;     \
@@ -107,7 +115,7 @@ kh_fill_flags(uint8_t *p, uint8_t c, size_t len)
     kh_fill_flags(h->ed_flags, 0xaa, sz/4);                             \
   }                                                                     \
   kh_##name##_t *kh_init_##name##_size(mrb_state *mrb, khint_t size) {  \
-    kh_##name##_t *h = (kh_##name##_t*)mrb_calloc(mrb, 1, sizeof(kh_##name##_t)); \
+    kh_##name##_t *h = (kh_##name##_t*)__calloc_func(mrb, 1, sizeof(kh_##name##_t)); \
     if (size < KHASH_MIN_SIZE)                                          \
       size = KHASH_MIN_SIZE;                                            \
     khash_power2(size);                                                 \
@@ -121,8 +129,8 @@ kh_fill_flags(uint8_t *p, uint8_t c, size_t len)
   void kh_destroy_##name(mrb_state *mrb, kh_##name##_t *h)              \
   {                                                                     \
     if (h) {                                                            \
-      mrb_free(mrb, h->keys);                                           \
-      mrb_free(mrb, h);                                                 \
+      __free_func(mrb, h->keys);                                        \
+      __free_func(mrb, h);                                              \
     }                                                                   \
   }                                                                     \
   void kh_clear_##name(mrb_state *mrb, kh_##name##_t *h)                \

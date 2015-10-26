@@ -15,7 +15,7 @@
 #include "mruby/error.h"
 #include "mruby/data.h"
 
-KHASH_DEFINE(mt, mrb_sym, struct RProc*, TRUE, kh_int_hash_func, kh_int_hash_equal)
+KHASH_DEFINE_GC(mt, mrb_sym, struct RProc*, TRUE, kh_int_hash_func, kh_int_hash_equal)
 
 void
 mrb_gc_mark_mt(mrb_state *mrb, struct RClass *c)

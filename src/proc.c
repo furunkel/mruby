@@ -72,6 +72,14 @@ mrb_closure_new(mrb_state *mrb, mrb_irep *irep)
   return p;
 }
 
+void
+mrb_gc_free_env(mrb_state *mrb, struct REnv *env) {
+  if (!MRB_ENV_STACK_SHARED_P(env)) {
+    mrb_free(mrb, env->stack);
+    env->stack = NULL;
+  }
+}
+
 MRB_API struct RProc *
 mrb_proc_new_cfunc(mrb_state *mrb, mrb_func_t func)
 {

@@ -642,14 +642,6 @@ MRB_API const char *mrb_sym2name(mrb_state*,mrb_sym);
 MRB_API const char *mrb_sym2name_len(mrb_state*,mrb_sym,mrb_int*);
 MRB_API mrb_value mrb_sym2str(mrb_state*,mrb_sym);
 
-MRB_API void *mrb_malloc(mrb_state*, size_t);         /* raise RuntimeError if no mem */
-MRB_API void *mrb_calloc(mrb_state*, size_t, size_t); /* ditto */
-MRB_API void *mrb_realloc(mrb_state*, void*, size_t); /* ditto */
-MRB_API void *mrb_realloc_simple(mrb_state*, void*, size_t); /* return NULL if no memory available */
-MRB_API void *mrb_malloc_simple(mrb_state*, size_t);  /* return NULL if no memory available */
-MRB_API struct RBasic *mrb_obj_alloc(mrb_state*, enum mrb_vtype, struct RClass*);
-MRB_API void mrb_free(mrb_state*, void*);
-
 MRB_API mrb_value mrb_str_new(mrb_state *mrb, const char *p, size_t len);
 
 /**

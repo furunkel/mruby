@@ -30,11 +30,13 @@ typedef void* (*mrb_mem_alloc_func) (struct mrb_state *mrb, void*, size_t, void 
 
 typedef void* (*mrb_page_alloc_func) (struct mrb_state *mrb, void*, size_t, void *ud);
 typedef int (*mrb_page_free_func) (struct mrb_state *mrb, void*, size_t, void *ud);
+typedef size_t (*mrb_alloc_size_func) (struct mrb_state *mrb, void*, void *ud);
 
 typedef struct {
   mrb_mem_alloc_func mem_alloc_func;
   mrb_page_alloc_func page_alloc_func;
   mrb_page_free_func page_free_func;
+  mrb_alloc_size_func alloc_size_func;
   void *ud;                       /* auxiliary data of allocf */
 } mrb_alloc_context;
 
@@ -118,6 +120,7 @@ typedef struct mrb_gc {
   mrb_bool generational  :1;
   mrb_bool out_of_memory :1;
   size_t majorgc_old_threshold;
+  size_t total_size;
 } mrb_gc;
 
 
@@ -130,6 +133,18 @@ MRB_API void mrb_incremental_gc(struct mrb_state *);
 MRB_API int mrb_gc_arena_save(struct mrb_state*);
 MRB_API void mrb_gc_arena_restore(struct mrb_state*,int);
 MRB_API void mrb_gc_mark(struct mrb_state*,struct RBasic*);
+
+MRB_API void *mrb_malloc(struct mrb_state*, size_t);
+MRB_API void *mrb_calloc(struct mrb_state*, size_t, size_t);
+MRB_API void *mrb_realloc(struct mrb_state*, void*, size_t); 
+MRB_API void mrb_free(struct mrb_state*, void*);
+
+MRB_API void *mrb_gc_realloc(struct mrb_state*, void*, size_t);
+MRB_API void *mrb_gc_malloc(struct mrb_state*, size_t);
+MRB_API void *mrb_gc_calloc(struct mrb_state*, size_t, size_t);
+MRB_API void mrb_gc_free(struct mrb_state*, void*);
+
+MRB_API struct RBasic *mrb_obj_alloc(struct mrb_state*, enum mrb_vtype, struct RClass*);
 
 #define mrb_gc_mark_value(mrb,val) do {\
   if (!mrb_immediate_p(val)) mrb_gc_mark((mrb), mrb_basic_ptr(val)); \

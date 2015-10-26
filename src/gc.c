@@ -11,6 +11,7 @@
 #elif (defined(__unix__) || defined(__unix) || (defined(__APPLE__) && defined(__MACH__)))
 #  include <sys/mman.h>
 #  include <unistd.h>
+#  include <malloc.h>
 #endif
 
 
@@ -272,17 +273,25 @@ int
 mrb_default_page_free_func(mrb_state *mrb, void *p, size_t size, void *ud)
 {
 #if defined(_WIN32)
-    return VirtualFree(p, size, MEM_DECOMMIT);
+  return VirtualFree(p, size, MEM_DECOMMIT);
 #elif defined(_POSIX_VERSION)
-    return munmap(p, size);
+  return munmap(p, size);
 #else
-#error Unknown operating system. Please provide your own allocation context.
+#  error Unknown operating system. Please provide your own allocation context.
 #endif
 }
 
-#if !defined(_SC_PAGESIZE) && defined(_SC_PAGE_SIZE)
-#define _SC_PAGESIZE _SC_PAGE_SIZE
+size_t
+mrb_default_alloc_size_func(mrb_state *mrb, void *p, void *ud)
+{
+#if defined(_WIN32)
+  return _msize(p);
+#elif defined(__APPLE__)
+  return malloc_size(p);
+#else
+  return malloc_usable_size(p);
 #endif
+}
 
 static size_t _page_size = -1;
 static size_t
@@ -314,29 +323,50 @@ const mrb_alloc_context mrb_default_alloc_context = {
   .mem_alloc_func = mrb_default_mem_alloc_func,
   .page_alloc_func = mrb_default_page_alloc_func,
   .page_free_func = mrb_default_page_free_func,
+  .alloc_size_func = mrb_default_alloc_size_func,
   .ud   = NULL,
 };
 
+MRB_API size_t
+mrb_alloc_size(mrb_state *mrb, void *p)
+{
+  return (mrb->alloc_cxt.alloc_size_func)(mrb, p, mrb->alloc_cxt.ud);
+}
+
 MRB_API void*
-mrb_realloc_simple(mrb_state *mrb, void *p,  size_t len)
+mrb_realloc(mrb_state *mrb, void *p,  size_t len)
+{
+  return (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.ud);
+}
+
+#define SUBTRACT_TOTAL_SIZE(size) \
+do {\
+  if(mrb->gc.total_size >= size) {\
+    mrb->gc.total_size -= size;\
+  } else {\
+   mrb->gc.total_size = 0;\
+  }\
+} while(0)
+
+#define ADD_TOTAL_SIZE(size) \
+do {\
+  mrb->gc.total_size += size;\
+} while(0)
+
+MRB_API void*
+mrb_gc_realloc(mrb_state *mrb, void *p, size_t len)
 {
   void *p2;
+  size_t p_size, p2_size;
 
-  p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.ud);
+  p_size = (p == NULL ? 0 : mrb_alloc_size(mrb, p));
+  p2 = mrb_realloc(mrb, p, len);
+  p2_size = (p2 == NULL ? 0 : mrb_alloc_size(mrb, p2));
+
   if (!p2 && len > 0 && mrb->gc.heaps) {
     mrb_full_gc(mrb);
     p2 = (mrb->alloc_cxt.mem_alloc_func)(mrb, p, len, mrb->alloc_cxt.ud);
   }
-
-  return p2;
-}
-
-MRB_API void*
-mrb_realloc(mrb_state *mrb, void *p, size_t len)
-{
-  void *p2;
-
-  p2 = mrb_realloc_simple(mrb, p, len);
   if (!p2 && len) {
     if (mrb->gc.out_of_memory) {
       /* mrb_panic(mrb); */
@@ -350,40 +380,62 @@ mrb_realloc(mrb_state *mrb, void *p, size_t len)
     mrb->gc.out_of_memory = FALSE;
   }
 
+  if(p2_size >= p_size) {
+    size_t diff = p2_size - p_size;
+    ADD_TOTAL_SIZE(diff);
+  } else {
+    size_t diff = p_size - p2_size;
+    SUBTRACT_TOTAL_SIZE(diff);
+  }
+
   return p2;
 }
 
 MRB_API void*
 mrb_malloc(mrb_state *mrb, size_t len)
 {
-  return mrb_realloc(mrb, 0, len);
+  return mrb_realloc(mrb, NULL, len);
 }
 
 MRB_API void*
-mrb_malloc_simple(mrb_state *mrb, size_t len)
+mrb_gc_malloc(mrb_state *mrb, size_t len)
 {
-  return mrb_realloc_simple(mrb, 0, len);
+  return mrb_gc_realloc(mrb, NULL, len);
 }
+
+#define CALLOC_PROLOG \
+  void *p; \
+  if (nelem > 0 && len > 0 && \
+      nelem <= SIZE_MAX / len) { \
+    size_t size; \
+    size = nelem * len;
+
+#define CALLOC_EPILOG \
+    if(!p) return NULL; \
+    memset(p, 0, size); \
+  } \
+  else { \
+    p = NULL; \
+  } \
+  return p;
 
 MRB_API void*
 mrb_calloc(mrb_state *mrb, size_t nelem, size_t len)
 {
-  void *p;
-
-  if (nelem > 0 && len > 0 &&
-      nelem <= SIZE_MAX / len) {
-    size_t size;
-    size = nelem * len;
+  CALLOC_PROLOG
     p = mrb_malloc(mrb, size);
-
-    memset(p, 0, size);
-  }
-  else {
-    p = NULL;
-  }
-
-  return p;
+  CALLOC_EPILOG
 }
+
+
+MRB_API void*
+mrb_gc_calloc(mrb_state *mrb, size_t nelem, size_t len)
+{
+  CALLOC_PROLOG
+    p = mrb_gc_malloc(mrb, size);
+  CALLOC_EPILOG
+}
+
 
 MRB_API void
 mrb_free(mrb_state *mrb, void *p)
@@ -391,16 +443,41 @@ mrb_free(mrb_state *mrb, void *p)
   (mrb->alloc_cxt.mem_alloc_func)(mrb, p, 0, mrb->alloc_cxt.ud);
 }
 
-MRB_API void*
-mrb_alloc_page(mrb_state *mrb, void *p, size_t size)
+
+MRB_API void
+mrb_gc_free(mrb_state *mrb, void *p)
 {
-  return (mrb->alloc_cxt.page_alloc_func)(mrb, p, size, mrb->alloc_cxt.ud);
+  size_t p_size = (p == NULL ? 0 : mrb_alloc_size(mrb, p));
+  (mrb->alloc_cxt.mem_alloc_func)(mrb, p, 0, mrb->alloc_cxt.ud);
+
+  SUBTRACT_TOTAL_SIZE(p_size);
+}
+
+
+MRB_API void*
+mrb_gc_alloc_page(mrb_state *mrb, void *p, size_t size)
+{
+  void *page;
+
+  mrb_assert(_page_size > 0);
+  size = MRB_ALIGN_UP(size, _page_size);
+  page = (mrb->alloc_cxt.page_alloc_func)(mrb, p, size, mrb->alloc_cxt.ud);
+  
+  ADD_TOTAL_SIZE(size);
+
+  return page;
 }
 
 MRB_API int
-mrb_free_page(mrb_state *mrb, void *p, size_t size)
+mrb_gc_free_page(mrb_state *mrb, void *p, size_t size)
 {
-  return (mrb->alloc_cxt.page_free_func)(mrb, p, size, mrb->alloc_cxt.ud);
+  int result;
+  size = MRB_ALIGN_UP(size, _page_size);
+  result = (mrb->alloc_cxt.page_free_func)(mrb, p, size, mrb->alloc_cxt.ud);
+
+  SUBTRACT_TOTAL_SIZE(size);
+
+  return result;
 }
 
 static void
@@ -551,7 +628,7 @@ add_heap_page(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
 {
   unsigned n_objs = n_objs_per_heap_page(type);
   unsigned n_pages = n_obj_pages(type);
-  mrb_heap_page *page = (mrb_heap_page *)mrb_alloc_page(mrb, NULL, (n_pages + 1) * _page_size);
+  mrb_heap_page *page = (mrb_heap_page *)mrb_gc_alloc_page(mrb, NULL, (n_pages + 1) * _page_size);
   struct mrb_gc_objhdr *prev = NULL;
 
   if(type == MRB_HEAP_TYPE_INFREQ) {
@@ -642,7 +719,7 @@ free_heap(mrb_state *mrb, mrb_gc *gc, mrb_heap *heap, mrb_heap_type type)
       }
     EACH_GC_OBJHDR_END()
 
-    mrb_free_page(mrb, (void *) tmp, (n_pages + 1) * _page_size);
+    mrb_gc_free_page(mrb, (void *) tmp, (n_pages + 1) * _page_size);
   }
 }
 
@@ -754,7 +831,7 @@ mrb_obj_alloc(mrb_state *mrb, enum mrb_vtype ttype, struct RClass *cls)
 #ifdef MRB_GC_STRESS
   mrb_full_gc(mrb);
 #endif
-  if (gc->threshold < gc->live) {
+  if (gc->live > gc->threshold) {
     mrb_incremental_gc(mrb);
   }
 
@@ -965,6 +1042,24 @@ mrb_gc_mark(mrb_state *mrb, struct RBasic *obj)
   }
 }
 
+void
+mrb_gc_free_data(mrb_state *mrb, struct RData *data)
+{
+  if (data->type && data->type->dfree) {
+    data->type->dfree(mrb, data->data);
+  }
+  mrb_gc_free_iv(mrb, (struct RObject*)data);
+}
+
+void
+mrb_gc_free_fiber(mrb_state *mrb, struct RFiber *fiber)
+{
+  struct mrb_context *c = fiber->cxt;
+
+  if (c != mrb->root_c)
+    mrb_free_context(mrb, c);
+}
+
 static void
 obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_gc_objhdr *header)
 {
@@ -1000,30 +1095,15 @@ obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_gc_objhdr *header)
       mrb_gc_free_mt(mrb, (struct RClass*)obj);
     break;
   case MRB_TT_ENV:
-    {
-      struct REnv *e = (struct REnv*)obj;
-
-      if (!MRB_ENV_STACK_SHARED_P(e)) {
-        mrb_free(mrb, e->stack);
-        e->stack = NULL;
-      }
-    }
+    mrb_gc_free_env(mrb, (struct REnv*)obj);
     break;
 
   case MRB_TT_FIBER:
-    {
-      struct mrb_context *c = ((struct RFiber*)obj)->cxt;
-
-      if (c != mrb->root_c)
-        mrb_free_context(mrb, c);
-    }
+    mrb_gc_free_fiber(mrb, (struct RFiber*)obj);
     break;
 
   case MRB_TT_ARRAY:
-    if (ARY_SHARED_P(obj))
-      mrb_ary_decref(mrb, ((struct RArray*)obj)->aux.shared);
-    else
-      mrb_free(mrb, ((struct RArray*)obj)->ptr);
+    mrb_gc_free_ary(mrb, (struct RArray*)obj);
     break;
 
   case MRB_TT_HASH:
@@ -1046,17 +1126,11 @@ obj_free(mrb_state *mrb, struct RBasic *obj, struct mrb_gc_objhdr *header)
     break;
 
   case MRB_TT_RANGE:
-    mrb_free(mrb, ((struct RRange*)obj)->edges);
+    mrb_gc_free_range(mrb, (struct RRange*)obj);
     break;
 
   case MRB_TT_DATA:
-    {
-      struct RData *d = (struct RData*)obj;
-      if (d->type && d->type->dfree) {
-        d->type->dfree(mrb, d->data);
-      }
-      mrb_gc_free_iv(mrb, (struct RObject*)obj);
-    }
+    mrb_gc_free_data(mrb, (struct RData*)obj); 
     break;
 
   default:
@@ -1285,7 +1359,7 @@ incremental_sweep_phase(mrb_state *mrb, mrb_gc *gc, size_t limit)
 
         unlink_heap_page(heap, page);
         unlink_free_heap_page(heap, page);
-        mrb_free_page(mrb, (void *) page, (n_pages + 1) * _page_size);
+        mrb_gc_free_page(mrb, (void *) page, (n_pages + 1) * _page_size);
         page = next;
       }
       else {

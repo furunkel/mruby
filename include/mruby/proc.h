@@ -58,6 +58,7 @@ struct RProc *mrb_closure_new(mrb_state*, mrb_irep*);
 MRB_API struct RProc *mrb_proc_new_cfunc(mrb_state*, mrb_func_t);
 MRB_API struct RProc *mrb_closure_new_cfunc(mrb_state *mrb, mrb_func_t func, int nlocals);
 void mrb_proc_copy(struct RProc *a, struct RProc *b);
+void mrb_gc_free_env(mrb_state *, struct REnv*);
 
 /* implementation of #send method */
 MRB_API mrb_value mrb_f_send(mrb_state *mrb, mrb_value self);
