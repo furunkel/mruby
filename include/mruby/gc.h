@@ -91,9 +91,9 @@ typedef struct mrb_heap_page {
 } mrb_heap_page;
 
 typedef struct mrb_heap {
-  mrb_heap_page *heaps;                /* heaps for GC */
+  mrb_heap_page *pages;                /* heaps for GC */
   mrb_heap_page *sweeps;
-  mrb_heap_page *free_heaps;
+  mrb_heap_page *free_pages;
 } mrb_heap;
 
 typedef struct mrb_gc {
